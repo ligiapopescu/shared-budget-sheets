@@ -1,0 +1,275 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Expense, Category, CategoryGroup, ExpenseSplit } from '@/interfaces';
+import { toast } from 'sonner';
+import { newId, nowIso } from '@/integrations/google/client';
+
+// expenses: 0:id 1:date 2:merchant 3:amount 4:currency 5:category_id
+//           6:user_id 7:description 8:household_id 9:created_at 10:updated_at
+// debt_entries (splits): 0:id 1:user_id 2:household_person_id 3:amount 4:currency
+//                         5:description 6:date 7:type 8:expense_id 9:split_method 10:split_value
+//                         11:resolved 12:created_at 13:updated_at
+
+export const useExpenseData = (includeHouseholdData = false) => {
+  const { user, sheetsService } = useAuth();
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    if (!user || !sheetsService) return;
+    try {
+      const sheets = await sheetsService.batchGet([
+        'household_persons', 'household_categories', 'household_category_groups',
+        'categories', 'expenses', 'debt_entries', 'merchant_categories',
+      ]);
+
+      const rawPersons  = sheets['household_persons'] ?? [];
+      const rawHCats    = sheets['household_categories'] ?? [];
+      const rawHGroups  = sheets['household_category_groups'] ?? [];
+      const rawCats     = sheets['categories'] ?? [];
+      const rawExpenses = sheets['expenses'] ?? [];
+      const rawDebts    = sheets['debt_entries'] ?? [];
+
+      // Determine household membership
+      const myPersonRow = rawPersons.find(r => r[1] === user.id || r[5] === user.id);
+      const householdId = myPersonRow?.[2] ?? null;
+
+      // Categories & groups
+      let formattedCategories: Category[];
+      let formattedGroups: CategoryGroup[] = [];
+
+      if (householdId) {
+        const hCats = rawHCats.filter(r => r[1] === householdId);
+        const hGroups = rawHGroups.filter(r => r[1] === householdId);
+        formattedCategories = hCats.map(r => ({ id: r[0], name: r[2], color: r[3], group_id: r[5] || undefined }));
+        formattedGroups = hGroups
+          .sort((a, b) => (parseInt(a[5]) || 0) - (parseInt(b[5]) || 0))
+          .map(r => ({
+            id: r[0], name: r[2], color: r[3], icon: r[4],
+            categories: formattedCategories.filter(c => c.group_id === r[0]),
+          }));
+      } else {
+        formattedCategories = rawCats
+          .filter(r => r[4] === user.id)
+          .map(r => ({ id: r[0], name: r[1], color: r[2], group_id: undefined }));
+      }
+      setCategories(formattedCategories);
+      setCategoryGroups(formattedGroups);
+
+      // Allowed user IDs for filtering
+      let allowedIds = new Set([user.id]);
+      if (includeHouseholdData) {
+        rawPersons.forEach(r => {
+          if (r[1]) allowedIds.add(r[1]);
+          if (r[5]) allowedIds.add(r[5]);
+        });
+      }
+
+      // Build household person name lookup (for splits)
+      const hpNameMap = new Map(rawPersons.filter(r => r[0]).map(r => [r[0], r[3]]));
+
+      // Build debt entries index by expense_id
+      const debtByExpense = new Map<string, typeof rawDebts[0][]>();
+      rawDebts.filter(r => r[8]).forEach(r => {
+        const eid = r[8];
+        if (!debtByExpense.has(eid)) debtByExpense.set(eid, []);
+        debtByExpense.get(eid)!.push(r);
+      });
+
+      // Format expenses
+      const catMap = new Map(formattedCategories.map(c => [c.id, c.name]));
+      const formatted: Expense[] = rawExpenses
+        .filter(r => r[0] && allowedIds.has(r[6]))
+        .map(r => {
+          const splits: ExpenseSplit[] | undefined = (debtByExpense.get(r[0]) ?? []).map(d => ({
+            household_person_id: d[2],
+            household_person_name: hpNameMap.get(d[2]) ?? d[2],
+            split_method: d[9] as 'amount' | 'percentage',
+            split_value: parseFloat(d[10]) || 0,
+            debt_entry_id: d[0],
+          }));
+          return {
+            id: r[0], date: r[1], merchant: r[2], amount: parseFloat(r[3]) || 0,
+            currency: r[4], category: catMap.get(r[5]) ?? 'Unknown',
+            user_id: r[6], description: r[7] || undefined,
+            splits: splits.length > 0 ? splits : undefined,
+          };
+        })
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+      setExpenses(formatted);
+    } catch (e) {
+      console.error('Error loading expense data:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, sheetsService, includeHouseholdData]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const getHouseholdId = async (): Promise<string | null> => {
+    if (!sheetsService || !user) return null;
+    const rows = await sheetsService.getWhereMultiple(
+      'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
+    );
+    return rows[0]?.[2] ?? null;
+  };
+
+  const resolveCategoryId = async (categoryName: string): Promise<string | undefined> => {
+    const local = categories.find(c => c.name === categoryName);
+    return local?.id;
+  };
+
+  const addExpense = async (expenseData: Omit<Expense, 'id' | 'user_id'>) => {
+    if (!user || !sheetsService) return;
+    const categoryId = await resolveCategoryId(expenseData.category);
+    if (!categoryId) return;
+
+    const hid = await getHouseholdId();
+    const now = nowIso();
+    const eid = newId();
+
+    const expRow = [
+      eid, expenseData.date, expenseData.merchant, String(expenseData.amount),
+      expenseData.currency, categoryId, user.id, expenseData.description ?? '',
+      hid ?? '', now, now,
+    ];
+    await sheetsService.appendRow('expenses', expRow);
+
+    let splitsInfo: ExpenseSplit[] | undefined;
+    if (expenseData.splits && expenseData.splits.length > 0) {
+      splitsInfo = [];
+      for (const split of expenseData.splits) {
+        const splitAmount = split.split_method === 'percentage'
+          ? Math.round(expenseData.amount * split.split_value / 100 * 100) / 100
+          : split.split_value;
+        const did = newId();
+        await sheetsService.appendRow('debt_entries', [
+          did, user.id, split.household_person_id, String(splitAmount),
+          expenseData.currency, `Split from expense: ${expenseData.merchant}`,
+          expenseData.date, 'owe_me', eid,
+          split.split_method, String(split.split_value), 'false', now, now,
+        ]);
+        splitsInfo.push({ ...split, debt_entry_id: did });
+      }
+    }
+
+    const newExpense: Expense = {
+      id: eid, date: expenseData.date, merchant: expenseData.merchant,
+      amount: expenseData.amount, category: expenseData.category,
+      user_id: user.id, description: expenseData.description, currency: expenseData.currency,
+      splits: splitsInfo,
+    };
+    setExpenses(prev => [newExpense, ...prev]);
+
+    // Update merchant category cache
+    const mcRows = await sheetsService.getWhereMultiple(
+      'merchant_categories',
+      r => r[1] === expenseData.merchant && r[3] === user.id,
+      r => r,
+    );
+    if (mcRows.length > 0) {
+      await sheetsService.updateById('merchant_categories', mcRows[0][0], {
+        category_id: categoryId, last_used: now,
+      });
+    } else {
+      await sheetsService.appendRow('merchant_categories', [newId(), expenseData.merchant, categoryId, user.id, now]);
+    }
+  };
+
+  const updateExpense = async (id: string, expenseData: Partial<Expense>) => {
+    if (!sheetsService) return;
+    const existing = expenses.find(e => e.id === id);
+    if (!existing) return;
+
+    const updates: Record<string, string> = {};
+    if (expenseData.date !== undefined)        updates.date = expenseData.date;
+    if (expenseData.merchant !== undefined)    updates.merchant = expenseData.merchant;
+    if (expenseData.amount !== undefined)      updates.amount = String(expenseData.amount);
+    if (expenseData.description !== undefined) updates.description = expenseData.description ?? '';
+    if (expenseData.currency !== undefined)    updates.currency = expenseData.currency;
+    if (expenseData.category !== undefined) {
+      const cid = await resolveCategoryId(expenseData.category);
+      if (cid) updates.category_id = cid;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await sheetsService.updateById('expenses', id, updates);
+    }
+
+    let splitsInfo = existing.splits;
+    if (expenseData.splits !== undefined) {
+      // Delete old debt entries for this expense
+      const debtRows = await sheetsService.getWhere('debt_entries', 'expense_id', id, r => r);
+      await Promise.all(debtRows.map(r => sheetsService.delete('debt_entries', r[0])));
+
+      if (expenseData.splits.length > 0) {
+        const now = nowIso();
+        const expAmt = expenseData.amount ?? existing.amount;
+        const expCur = expenseData.currency ?? existing.currency;
+        const expDate = expenseData.date ?? existing.date;
+        const expMerchant = expenseData.merchant ?? existing.merchant;
+        splitsInfo = [];
+        for (const split of expenseData.splits) {
+          const splitAmt = split.split_method === 'percentage'
+            ? parseFloat((expAmt * split.split_value / 100).toFixed(2))
+            : split.split_value;
+          const did = newId();
+          await sheetsService.appendRow('debt_entries', [
+            did, user!.id, split.household_person_id, String(splitAmt),
+            expCur, `Split of ${expMerchant}`, expDate,
+            'owe_me', id, split.split_method, String(split.split_value), 'false', now, now,
+          ]);
+          splitsInfo.push({ ...split, debt_entry_id: did });
+        }
+      } else {
+        splitsInfo = undefined;
+      }
+    }
+
+    setExpenses(prev => prev.map(e => e.id === id ? {
+      ...e, ...expenseData,
+      category: expenseData.category ?? e.category,
+      splits: splitsInfo,
+    } : e));
+  };
+
+  const deleteExpense = async (id: string) => {
+    if (!sheetsService) return;
+    setExpenses(prev => prev.filter(e => e.id !== id));
+    const debtRows = await sheetsService.getWhere('debt_entries', 'expense_id', id, r => r);
+    await Promise.all(debtRows.map(r => sheetsService.delete('debt_entries', r[0])));
+    await sheetsService.delete('expenses', id);
+  };
+
+  const removeSplitFromExpense = async (expenseId: string, debtEntryId?: string) => {
+    if (!sheetsService) return;
+    if (debtEntryId) {
+      await sheetsService.delete('debt_entries', debtEntryId);
+      setExpenses(prev => prev.map(e => {
+        if (e.id !== expenseId || !e.splits) return e;
+        const updated = e.splits.filter(s => s.debt_entry_id !== debtEntryId);
+        return { ...e, splits: updated.length > 0 ? updated : undefined };
+      }));
+    } else {
+      const debtRows = await sheetsService.getWhere('debt_entries', 'expense_id', expenseId, r => r);
+      await Promise.all(debtRows.map(r => sheetsService.delete('debt_entries', r[0])));
+      setExpenses(prev => prev.map(e => e.id === expenseId ? { ...e, splits: undefined } : e));
+    }
+  };
+
+  const getMerchantCategory = (merchant: string): string => {
+    const last = expenses
+      .filter(e => e.merchant.toLowerCase().includes(merchant.toLowerCase()))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    return last?.category ?? 'Other';
+  };
+
+  return {
+    expenses, categories, categoryGroups, loading,
+    addExpense, deleteExpense, getMerchantCategory, setCategories,
+    updateExpense, removeSplitFromExpense, refreshData: loadData,
+  };
+};
