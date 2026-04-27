@@ -90,7 +90,7 @@ These should not be implemented without input from the project owner.
 
 ---
 
-## Done in this commit
+## Done in wave 1
 
 - [BUGS.md #1](BUGS.md) Critical: `deleteExpense` rollback + error handling — fixed.
 - [BUGS.md #2](BUGS.md) Critical: `addExpense` atomicity + error handling — fixed.
@@ -98,3 +98,16 @@ These should not be implemented without input from the project owner.
 - Bundle split into vendor / recharts / radix chunks via `manualChunks` in [vite.config.ts](vite.config.ts).
 - [LICENSE](LICENSE) — MIT.
 - README rewritten with a user-facing top section.
+
+## Done in wave 2
+
+- [BUGS.md #3](BUGS.md) High: `acceptInvitation` and `inviteUser` are now atomic-on-failure — second write is wrapped in try/catch, first write is reverted on failure.
+- [BUGS.md #6](BUGS.md) High: currency conversion no longer fails silently. It still returns the unconverted amount (non-breaking) but now warns once per missing pair and exposes `isRateAvailable(from, to)` for callers that want to gate UI.
+- [BUGS.md #7](BUGS.md) High: CSV auto-detect now samples date cells before committing to YYYY-MM-DD; if the format doesn't match, the user is forced into the column-mapping dialog with an explicit prompt.
+- [BUGS.md #8](BUGS.md) High: token expiry now handled. Proactive refresh at `expires_in - 60s`, plus a 401-retry path inside `GoogleSheetsService.request()` that awaits a silent re-auth and retries the request once.
+
+## Still open / next waves
+
+- BUGS.md #4 (stale 30s row-index cache), #5 (`updateExpense` split race), #9 (non-atomic `getOrCreateHouseholdId`), and the Medium/Low items.
+- Wire `isRateAvailable` into the display call sites that render multi-currency totals so the user actually sees a "rate unknown" indicator instead of a lurking warning in the console.
+- Wave 3 product-decision items (hosting, telemetry, OAuth verification, branding).

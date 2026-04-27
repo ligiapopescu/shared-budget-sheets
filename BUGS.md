@@ -1,6 +1,10 @@
 # Known bugs
 
-A code-reading audit done during Phase 3 of the cleanup. Findings are ranked by severity. None of these are fixed yet — open them as PRs when prioritised. One bug found during the audit (the `split('-')` UUID parsing in `DebtManagement`) was already fixed in commit `98db1de`.
+A code-reading audit done during Phase 3 of the cleanup. Findings are ranked by severity. The Critical bugs and the High items called out in Phase 4 wave 1 + wave 2 are now fixed; this file is kept as the running ledger.
+
+**Status legend:** ✅ fixed · 🚧 partial · ⏳ open
+
+One bug found during the audit (the `split('-')` UUID parsing in `DebtManagement`) was already fixed in commit `98db1de`.
 
 Severity scale:
 - **Critical** — data loss, auth bypass, wrong row written
@@ -12,7 +16,8 @@ Severity scale:
 
 ## Critical
 
-### 1. `deleteExpense` has no rollback and no error handling
+### 1. ✅ `deleteExpense` has no rollback and no error handling
+**Fixed** in Phase 4 wave 1 (commit `50736ae`). Snapshots state, restores on failure, surfaces a toast.
 [`src/hooks/useExpenseData.ts:235-241`](src/hooks/useExpenseData.ts:235)
 
 ```ts
@@ -29,7 +34,8 @@ State mutates first, three awaited calls follow with no try/catch. If any of the
 
 **Fix shape**: snapshot, optimistic remove, `try { … } catch { restore snapshot; toast error; throw }`. Match the pattern used by `addIncome`/`updateIncome`.
 
-### 2. `addExpense` writes split debt-entries without transactional fallback
+### 2. ✅ `addExpense` writes split debt-entries without transactional fallback
+**Fixed** in Phase 4 wave 1 (commit `50736ae`). Three-phase write with best-effort cleanup of partial writes; reloads from Sheets on failure so local state matches.
 [`src/hooks/useExpenseData.ts:121-176`](src/hooks/useExpenseData.ts:121)
 
 The expense row is appended first, then each split's `debt_entries` row, then state is updated. There's no try/catch around any of this. If the expense row writes successfully but a debt_entries write fails partway through:
@@ -45,7 +51,8 @@ The expense row is appended first, then each split's `debt_entries` row, then st
 
 ## High
 
-### 3. `acceptInvitation` is non-atomic
+### 3. ✅ `acceptInvitation` is non-atomic
+**Fixed** in Phase 4 wave 2. Both `acceptInvitation` and `inviteUser` now wrap the second write in try/catch and revert the first write on failure.
 [`src/hooks/useHouseholdData.ts:208-215`](src/hooks/useHouseholdData.ts:208)
 
 ```ts
@@ -71,21 +78,24 @@ When edited splits change, the hook deletes all existing `debt_entries` for the 
 
 **Fix shape**: either guard the operation with an in-flight `Set<expenseId>` and reject overlap, or compute a diff (delete only debt rows that are leaving, insert only ones that are new) so the operation is idempotent under interleaving.
 
-### 6. Currency conversion silently returns un-converted amount
+### 6. 🚧 Currency conversion silently returns un-converted amount
+**Partial** in Phase 4 wave 2. The function still returns the unconverted amount on a missing rate (so the API stays non-breaking), but it now `console.warn`s once per missing pair and exposes a new `isRateAvailable(from, to)` helper that callers can use to render a "rate unknown" indicator. Updating display call sites is open work.
 [`src/hooks/useCurrencyConverter.ts:32-40`](src/hooks/useCurrencyConverter.ts:32)
 
 If neither a direct rate (A→B) nor a USD-pivot pair (A→USD and USD→B) exists, `convertAmount` returns `amount` unchanged. The caller then renders it labelled with the target currency. The user sees `$50` for what is actually `€50` and has no way to know.
 
 **Fix shape**: have the function return `{ amount, converted: boolean }` (or throw / return null). Callers can then surface a "rate unavailable" indicator or fallback to showing the original currency code.
 
-### 7. CSV date format is silently auto-defaulted
+### 7. ✅ CSV date format is silently auto-defaulted
+**Fixed** in Phase 4 wave 2. `processCSVFile` samples up to 5 date cells; if fewer than half look like ISO `YYYY-MM-DD`, the auto-process path is skipped and the user is forced into the column-mapping dialog with a toast prompting them to pick the format explicitly.
 [`src/components/expense/FileUpload.tsx`](src/components/expense/FileUpload.tsx) (around the auto-detect path)
 
 When the column-mapping dialog auto-detects headers, the date format defaults to `YYYY-MM-DD`. A CSV in `DD/MM/YYYY` is then parsed as `YYYY-MM-DD` and silently produces wrong dates (off by month, or completely garbage). The user sees expenses on the wrong day with no warning.
 
 **Fix shape**: when auto-detecting, sample N values, and if any fails to parse as the default format, force the user into the explicit-mapping dialog with a "couldn't auto-detect format" message.
 
-### 8. Token expiry isn't proactively detected
+### 8. ✅ Token expiry isn't proactively detected
+**Fixed** in Phase 4 wave 2. AuthContext now (a) schedules a silent re-auth at `expires_in - 60s` after every successful token, and (b) exposes `refreshAccessTokenAsync()` to `GoogleSheetsService`, which calls it from `request()` on a 401 and retries the request once with the new token. Refresh timer is cleared on sign-out; pending 401 retries reject if the refresh fails.
 [`src/contexts/AuthContext.tsx`](src/contexts/AuthContext.tsx) (token plumbing)
 
 The OAuth implicit flow gives a short-lived access token (3600s). Nothing in `AuthContext` proactively refreshes it; the silent re-auth path runs on mount and on certain failures, but a long-lived browser tab will eventually fire requests with an expired token. Sheets API returns 401, the request layer doesn't have a 401-handler, the error bubbles up as a generic toast or is swallowed.

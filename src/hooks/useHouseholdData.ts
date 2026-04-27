@@ -196,12 +196,23 @@ export const useHouseholdData = () => {
 
   const inviteUser = async (householdPersonId: string, email: string) => {
     if (!user || !sheetsService) return;
+    // Capture the previous email so we can revert if the invitation row write fails.
+    const previousEmail = householdPersons.find(p => p.id === householdPersonId)?.email ?? '';
     await sheetsService.updateById('household_persons', householdPersonId, { email });
     const now = nowIso();
     const iid = newId();
-    await sheetsService.appendRow('household_invitations', [
-      iid, user.id, householdPersonId, email, '', 'pending', now, now,
-    ]);
+    try {
+      await sheetsService.appendRow('household_invitations', [
+        iid, user.id, householdPersonId, email, '', 'pending', now, now,
+      ]);
+    } catch (e) {
+      // Revert the email change so we don't leave a person row pointing at
+      // an address that has no matching invitation row.
+      try {
+        await sheetsService.updateById('household_persons', householdPersonId, { email: previousEmail });
+      } catch { /* best-effort */ }
+      throw e;
+    }
     await loadData();
   };
 
@@ -210,7 +221,17 @@ export const useHouseholdData = () => {
     const inv = invitations.find(i => i.id === invitationId);
     if (!inv) return;
     await sheetsService.updateById('household_persons', inv.household_person_id, { connected_user_id: user.id });
-    await sheetsService.updateById('household_invitations', invitationId, { status: 'accepted', invited_user_id: user.id });
+    try {
+      await sheetsService.updateById('household_invitations', invitationId, { status: 'accepted', invited_user_id: user.id });
+    } catch (e) {
+      // Revert the connected_user_id so the user isn't half-joined: a
+      // pending invitation is a recoverable state, but a person row
+      // claiming connection without a matching accepted invitation isn't.
+      try {
+        await sheetsService.updateById('household_persons', inv.household_person_id, { connected_user_id: '' });
+      } catch { /* best-effort */ }
+      throw e;
+    }
     await loadData();
   };
 

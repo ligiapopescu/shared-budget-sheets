@@ -105,10 +105,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const serviceRef = useRef<GoogleSheetsService | null>(null);
   const latestTokenRef = useRef<string | null>(null);
+  // Proactive refresh timer: implicit-flow tokens expire after expires_in
+  // seconds (typically 3600). We schedule a silent re-auth at ~60s before
+  // expiry so the in-memory token never goes stale during a session.
+  const refreshTimerRef = useRef<number | null>(null);
+  // When sheetsService.request() hits a 401 it calls refreshAccessTokenAsync,
+  // which queues here while triggerSilentLogin runs. onTokenSuccess /
+  // onTokenError resolve / reject this so the original API call can retry.
+  const pendingRefreshRef = useRef<{
+    promise: Promise<string>;
+    resolve: (t: string) => void;
+    reject: (e: Error) => void;
+  } | null>(null);
+
+  function scheduleProactiveRefresh(expiresInSec: number) {
+    if (refreshTimerRef.current != null) clearTimeout(refreshTimerRef.current);
+    const ms = Math.max(60_000, (expiresInSec - 60) * 1000);
+    refreshTimerRef.current = window.setTimeout(() => {
+      // Best-effort: if silent login can't refresh (Google session expired),
+      // the user will see the next API call fail and can re-login manually.
+      triggerSilentLogin();
+    }, ms);
+  }
+
+  function refreshAccessTokenAsync(): Promise<string> {
+    if (pendingRefreshRef.current) return pendingRefreshRef.current.promise;
+    let resolve!: (t: string) => void;
+    let reject!: (e: Error) => void;
+    const promise = new Promise<string>((res, rej) => { resolve = res; reject = rej; });
+    pendingRefreshRef.current = { promise, resolve, reject };
+    triggerSilentLogin();
+    return promise;
+  }
 
   // ── Token → full auth init ───────────────────────────────────────────
 
-  async function onTokenSuccess(accessToken: string) {
+  async function onTokenSuccess(accessToken: string, expiresIn?: number) {
     try {
       const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -124,10 +156,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Keep the access token in the ref so createNewSpreadsheet / connectToSpreadsheet can use it.
       latestTokenRef.current = accessToken;
 
+      // Wire the new token into any existing service and resolve any
+      // queued 401-retry promise.
+      if (serviceRef.current) serviceRef.current.setAccessToken(accessToken);
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current.resolve(accessToken);
+        pendingRefreshRef.current = null;
+      }
+      // Schedule the next proactive refresh.
+      if (expiresIn && expiresIn > 0) scheduleProactiveRefresh(expiresIn);
+
       // If a spreadsheet was previously linked, reconnect silently.
       const sid = localStorage.getItem(sheetKey(sub));
       if (sid) {
-        const svc = new GoogleSheetsService(sid, accessToken);
+        const svc = new GoogleSheetsService(sid, accessToken, refreshAccessTokenAsync);
         await svc.initializeSpreadsheet();
         const existing = await svc.getWhere('profiles', 'id', sub, r => r);
         if (existing.length === 0) {
@@ -149,7 +191,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   async function initSpreadsheet(sid: string) {
     const accessToken = latestTokenRef.current;
     if (!accessToken || !user) throw new Error('Not authenticated');
-    const svc = new GoogleSheetsService(sid, accessToken);
+    const svc = new GoogleSheetsService(sid, accessToken, refreshAccessTokenAsync);
     await svc.initializeSpreadsheet();
     const existing = await svc.getWhere('profiles', 'id', user.id, r => r);
     if (existing.length === 0) {
@@ -164,16 +206,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ── Google login hooks (top-level calls required by React) ───────────
 
+  const handleAuthError = () => {
+    setLoading(false);
+    // If a 401-retry was waiting on this refresh, fail it so the original
+    // API call surfaces a real error instead of hanging forever.
+    if (pendingRefreshRef.current) {
+      pendingRefreshRef.current.reject(new Error('Silent re-auth failed'));
+      pendingRefreshRef.current = null;
+    }
+  };
+
   const triggerLogin = useGoogleLogin({
-    onSuccess: r => onTokenSuccess(r.access_token),
-    onError: () => setLoading(false),
+    onSuccess: r => onTokenSuccess(r.access_token, r.expires_in),
+    onError: handleAuthError,
     scope: 'openid email profile https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
     flow: 'implicit',
   });
 
   const triggerSilentLogin = useGoogleLogin({
-    onSuccess: r => onTokenSuccess(r.access_token),
-    onError: () => setLoading(false),
+    onSuccess: r => onTokenSuccess(r.access_token, r.expires_in),
+    onError: handleAuthError,
     scope: 'openid email profile https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
     flow: 'implicit',
     prompt: '',   // empty string = no prompt if session is still active
@@ -212,6 +264,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     serviceRef.current = null;
     setSpreadsheetId(null);
     latestTokenRef.current = null;
+    if (refreshTimerRef.current != null) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+    if (pendingRefreshRef.current) {
+      pendingRefreshRef.current.reject(new Error('Signed out'));
+      pendingRefreshRef.current = null;
+    }
     localStorage.removeItem('cached_google_user');
   };
 

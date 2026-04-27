@@ -25,20 +25,31 @@ export class GoogleSheetsService {
   private cache: Map<string, CacheEntry> = new Map();
   // Numeric tab IDs (sheetId) fetched once on first use, keyed by sheet name.
   private sheetIds: Map<string, number> = new Map();
+  // Optional callback that returns a fresh access token. AuthContext
+  // wires this up so a 401 from Sheets triggers silent re-auth and a
+  // single retry instead of bubbling up as a generic error.
+  private onTokenExpired?: () => Promise<string>;
 
   constructor(
     private spreadsheetId: string,
     private accessToken: string,
-  ) {}
+    onTokenExpired?: () => Promise<string>,
+  ) {
+    this.onTokenExpired = onTokenExpired;
+  }
 
   // Update the access token when it is refreshed.
   setAccessToken(token: string) {
     this.accessToken = token;
   }
 
+  setTokenRefresher(fn: () => Promise<string>) {
+    this.onTokenExpired = fn;
+  }
+
   // ── HTTP primitives ────────────────────────────────────────────────────
 
-  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
+  private async request(path: string, init: RequestInit = {}, isAuthRetry = false): Promise<unknown> {
     const url = `${this.baseUrl}/${this.spreadsheetId}${path}`;
     let delay = 1000;
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -51,6 +62,16 @@ export class GoogleSheetsService {
         },
       });
       if (res.ok) return res.json();
+      // Auth failure: try to refresh once and retry the request.
+      if (res.status === 401 && !isAuthRetry && this.onTokenExpired) {
+        try {
+          const newToken = await this.onTokenExpired();
+          this.accessToken = newToken;
+          return this.request(path, init, true);
+        } catch {
+          // Refresh failed — fall through to the regular error throw.
+        }
+      }
       if (res.status === 429 && attempt < 3) {
         await new Promise(r => setTimeout(r, delay));
         delay *= 2;

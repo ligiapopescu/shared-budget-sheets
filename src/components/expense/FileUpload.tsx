@@ -376,7 +376,29 @@ const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantC
           setIsProcessing(false);
           return;
         }
-        
+
+        // Sample the first few date cells. The auto-process path commits to
+        // YYYY-MM-DD; if the file is actually DD/MM/YYYY or DD.MM.YYYY,
+        // parseDateWithFormat will silently fall back to "today" for every
+        // row. Force the user into the column-mapping dialog (where they
+        // can pick the right format) if the samples don't look ISO.
+        const samples: string[] = [];
+        for (let i = 1; i < lines.length && samples.length < 5; i++) {
+          const cell = lines[i].split(',')[dateIndex];
+          if (cell) samples.push(cell.replace(/"/g, '').trim());
+        }
+        const isoLike = samples.filter(s => /^\d{4}-\d{2}-\d{2}/.test(s)).length;
+        if (samples.length === 0 || isoLike < Math.ceil(samples.length / 2)) {
+          toast({
+            title: 'Confirm date format',
+            description: "We couldn't auto-detect the date format. Pick it from the dialog.",
+          });
+          setCsvData({ headers: lines[0].split(',').map(h => h.trim()), lines });
+          setShowColumnMapping(true);
+          setIsProcessing(false);
+          return;
+        }
+
         // Process with automatic detection - use default date format
         const mapping: ColumnMapping = {
           date: dateIndex,
@@ -385,7 +407,7 @@ const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantC
           currency: currencyIndex !== -1 ? currencyIndex : undefined,
           category: categoryIndex !== -1 ? categoryIndex : undefined
         };
-        
+
         const categorizedExpenses = await processExpensesWithMapping(mapping, headers, lines, 'YYYY-MM-DD');
         
         const totalExpenses = categorizedExpenses.automaticallyClassified.length + 

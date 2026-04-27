@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNumberFormatPreference } from './useNumberFormatPreference';
 import { getCurrencySymbol } from '@/constants/currencies';
@@ -30,6 +30,19 @@ export const useCurrencyConverter = () => {
       .finally(() => setLoading(false));
   }, [sheetsService]);
 
+  // Tracks pairs we've already warned about so we don't spam the console
+  // when a missing rate appears in 30 rows of a list.
+  const warnedPairsRef = useRef<Set<string>>(new Set());
+
+  const isRateAvailable = (fromCurrency: string, toCurrency: string): boolean => {
+    if (fromCurrency === toCurrency) return true;
+    const direct = exchangeRates.some(r => r.from_currency === fromCurrency && r.to_currency === toCurrency);
+    if (direct) return true;
+    const toUsd = exchangeRates.some(r => r.from_currency === fromCurrency && r.to_currency === 'USD');
+    const fromUsd = exchangeRates.some(r => r.from_currency === 'USD' && r.to_currency === toCurrency);
+    return toUsd && fromUsd;
+  };
+
   const convertAmount = (amount: number, fromCurrency: string, toCurrency: string): number => {
     if (fromCurrency === toCurrency) return amount;
     const direct = exchangeRates.find(r => r.from_currency === fromCurrency && r.to_currency === toCurrency);
@@ -37,6 +50,15 @@ export const useCurrencyConverter = () => {
     const toUsd = exchangeRates.find(r => r.from_currency === fromCurrency && r.to_currency === 'USD');
     const fromUsd = exchangeRates.find(r => r.from_currency === 'USD' && r.to_currency === toCurrency);
     if (toUsd && fromUsd) return amount * toUsd.rate * fromUsd.rate;
+    // No rate available. Returning `amount` unchanged means the caller will
+    // render a number that's labelled with `toCurrency` but is in fact the
+    // value in `fromCurrency`. Callers that care should gate on
+    // isRateAvailable() and render a "rate unknown" indicator.
+    const pair = `${fromCurrency}->${toCurrency}`;
+    if (!warnedPairsRef.current.has(pair) && !loading) {
+      warnedPairsRef.current.add(pair);
+      console.warn(`[useCurrencyConverter] No exchange rate for ${pair}; returning unconverted amount.`);
+    }
     return amount;
   };
 
@@ -44,5 +66,5 @@ export const useCurrencyConverter = () => {
     minimumFractionDigits?: number; maximumFractionDigits?: number;
   }) => `${getCurrencySymbol(currency)}${formatNumber(amount, options)}`;
 
-  return { exchangeRates, loading, convertAmount, getCurrencySymbol, formatCurrency, formatNumber };
+  return { exchangeRates, loading, convertAmount, isRateAvailable, getCurrencySymbol, formatCurrency, formatNumber };
 };
