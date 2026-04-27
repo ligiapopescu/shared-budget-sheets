@@ -60,7 +60,7 @@ Use these helpers — never re-implement the `r[1] === user.id || r[5] === user.
 ## Feature map
 
 ### Auth & spreadsheet setup
-[src/pages/Auth.tsx](../src/pages/Auth.tsx), [src/contexts/AuthContext.tsx](../src/contexts/AuthContext.tsx), [src/pages/SpreadsheetSetup.tsx](../src/pages/SpreadsheetSetup.tsx). Google OAuth implicit flow → user can either create a fresh spreadsheet (Drive API) or paste an existing URL/ID. Tokens in memory; profile cached in `localStorage`.
+[src/pages/Auth.tsx](../src/pages/Auth.tsx), [src/contexts/AuthContext.tsx](../src/contexts/AuthContext.tsx), [src/pages/SpreadsheetSetup.tsx](../src/pages/SpreadsheetSetup.tsx). Google OAuth implicit flow → user can either create a fresh spreadsheet (Drive API) or paste an existing URL/ID. Tokens in memory; profile cached in `localStorage`. The link between a Google account and its household sheet is stored on the file itself as a private Drive `appProperty` (`shared_budget_sheets=1`), so sign-in on a fresh device finds the sheet by querying Drive — no localStorage involved. See `resolveSpreadsheetId` in `AuthContext.tsx` and `findTaggedSpreadsheet` / `tagSpreadsheet` in [driveService.ts](../src/integrations/google/driveService.ts).
 
 ### Expense tracking
 [src/components/expense/ExpenseList.tsx](../src/components/expense/ExpenseList.tsx) + [ExpenseForm.tsx](../src/components/expense/ExpenseForm.tsx) + [ExpenseItem.tsx](../src/components/expense/ExpenseItem.tsx). Inline-edit cells, multi-currency display, optional household scope. Data via [useExpenseData()](../src/hooks/useExpenseData.ts) (single `batchGet` for the whole expense + categories + debts graph).

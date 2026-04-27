@@ -66,11 +66,16 @@ export const useAuth = () => {
 };
 
 // ─── localStorage helpers ────────────────────────────────────────────────────
+//
+// localStorage is used ONLY for cached identity (so the UI can show the
+// user's name/avatar instantly while the silent-auth round-trip runs) and
+// for user-display-preference metadata. The link between a Google account
+// and its household spreadsheet lives in Drive's appProperties — see
+// resolveSpreadsheetId() below.
 
 const spreadsheetTitle = (email: string) => `Shared Budget Sheets — ${email}`;
 
 function metaKey(userId: string) { return `user_meta_${userId}`; }
-function sheetKey(userId: string) { return `spreadsheet_id_${userId}`; }
 
 function loadMeta(userId: string): UserMetadata {
   try { return JSON.parse(localStorage.getItem(metaKey(userId)) ?? '{}'); }
@@ -79,6 +84,22 @@ function loadMeta(userId: string): UserMetadata {
 
 function saveMeta(userId: string, meta: UserMetadata) {
   localStorage.setItem(metaKey(userId), JSON.stringify(meta));
+}
+
+// Find the user's household spreadsheet by querying their own Drive. Tries
+// the modern app-property tag first; falls back to a legacy title search
+// for users whose sheet predates the tagging change (and tags it on hit).
+async function resolveSpreadsheetId(drive: DriveService, email: string): Promise<string | null> {
+  const tagged = await drive.findTaggedSpreadsheet();
+  if (tagged) return tagged;
+  const byTitle = await drive.findSpreadsheetByTitle(spreadsheetTitle(email));
+  if (byTitle) {
+    drive.tagSpreadsheet(byTitle).catch(e =>
+      console.warn('[Auth] failed to tag legacy sheet:', e),
+    );
+    return byTitle;
+  }
+  return null;
 }
 
 interface CachedProfile { id: string; email: string; name: string; picture: string; }
@@ -166,8 +187,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Schedule the next proactive refresh.
       if (expiresIn && expiresIn > 0) scheduleProactiveRefresh(expiresIn);
 
-      // If a spreadsheet was previously linked, reconnect silently.
-      const sid = localStorage.getItem(sheetKey(sub));
+      // Discover the user's household spreadsheet via Drive (no localStorage).
+      const sid = await resolveSpreadsheetId(new DriveService(accessToken), email);
       if (sid) {
         const svc = new GoogleSheetsService(sid, accessToken, refreshAccessTokenAsync);
         await svc.initializeSpreadsheet();
@@ -198,7 +219,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const now = new Date().toISOString();
       await svc.appendRow('profiles', [user.id, user.email, user.name, now, now]);
     }
-    localStorage.setItem(sheetKey(user.id), sid);
+    // Tag in Drive so future sign-ins (any device, any browser) can find
+    // this spreadsheet without relying on local storage. Best-effort.
+    new DriveService(accessToken)
+      .tagSpreadsheet(sid)
+      .catch(e => console.warn('[Auth] failed to tag spreadsheet:', e));
     setSpreadsheetId(sid);
     setSheetsService(svc);
     serviceRef.current = svc;
@@ -237,10 +262,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const cached = loadCachedProfile();
     if (cached) {
       // Show cached identity instantly; then try a silent token refresh.
+      // Spreadsheet discovery happens after the silent re-auth lands a
+      // fresh access token — Drive search needs a valid Bearer.
       const meta = loadMeta(cached.id);
       setUser({ ...cached, user_metadata: meta });
-      const sid = localStorage.getItem(sheetKey(cached.id));
-      if (sid) setSpreadsheetId(sid);
       // Silent re-auth: works if the Google session cookie is still valid.
       // If it fails (onError), loading becomes false and the login button appears.
       triggerSilentLogin();
