@@ -190,7 +190,7 @@ export class GoogleSheetsService {
     const sheetId = await this.getSheetId(sheetName);
     const startIndex = dataIdx + 1; // +1 for header row
     this.invalidateCache(sheetName);
-    await this.request('/batchUpdate', {
+    await this.request(':batchUpdate', {
       method: 'POST',
       body: JSON.stringify({
         requests: [{
@@ -208,7 +208,7 @@ export class GoogleSheetsService {
   }
 
   async batchUpdate(requests: object[]): Promise<void> {
-    await this.request('/batchUpdate', {
+    await this.request(':batchUpdate', {
       method: 'POST',
       body: JSON.stringify({ requests }),
     });
