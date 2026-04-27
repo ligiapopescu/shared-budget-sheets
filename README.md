@@ -39,48 +39,20 @@ Browser (React + Vite)
 
 All data is stored as strings in the sheet. No backend. Full reference in `CLAUDE.md` (generated in Phase 1 cleanup).
 
----
 
-## Known gaps
-
-- **Invite flow** (`InviteUserDialog`, `InvitationsList`) still references old join-link model — needs alignment with the new "paste spreadsheet URL" sharing approach.
-- **Exchange rates** tab exists but is never populated — no live data source wired yet.
-- **Multi-user concurrency** — 30s row-index cache can go stale with two simultaneous writers.
-- **Silent login failure** — if token refresh fails on mount, user sees a bare login button with no explanation.
 
 ---
 
 ## TODO
 
-### Phase 1 — Cleanup & Docs
-- [ ] 1.1 Remove debug `console.log` statements (`DatePickerInput.tsx`, `FileUpload.tsx`)
-- [ ] 1.2 Replace all `any` types with proper interfaces
-- [ ] 1.3 Create `src/constants.ts` (sheet names, localStorage keys, magic numbers)
-- [ ] 1.4 Add page-level Error Boundaries (`Index`, `DebtManagement`, `Settings`)
-- [ ] 1.5 Create `CLAUDE.md` with full architecture reference
-- [ ] 1.6 Remove or adopt `@tanstack/react-query` (installed but unused)
+### Phase 1 — Cleanup
+- [ ] 1. Perform code cleanup: remove unused code or dependencies, console logs, etc.
 
 ### Phase 2 — Refactoring
-- [ ] 2.1 Consolidate Add/Edit dialog pairs → single form components (Savings, Automation, BulkSplit)
-- [ ] 2.2 Split `ExpenseList.tsx` (731 lines)
-- [ ] 2.3 Split `DebtEntriesList.tsx` (766 lines)
-- [ ] 2.4 Split `FileUpload.tsx` (687 lines)
-- [ ] 2.5 Split `DashboardCharts.tsx` (651 lines) + extract `useDashboardMetrics` hook
-- [ ] 2.6 Centralize type definitions under `src/interfaces/`
-- [ ] 2.7 Extract typed row parsers from hooks into `sheetSchema.ts`
+- [ ] 2. Establish a file system and consolidate the code, improve the components layer, add abstractization, implement overall best practices
 
-### Phase 3 — Known Gaps
-- [ ] 3.1 **[Human decision]** Invite flow UX — remove, repurpose as sharing guide, or keep for future?
-- [ ] 3.2 **[Human decision]** Exchange rates — pick API source (frankfurter.app, manual entry, other)
-- [ ] 3.3 Invalidate row-index cache immediately on write (concurrency fix)
-- [ ] 3.4 Add "session expired" message when silent login fails on mount
+### Phase 3 — Docs and UX scanning 
+- [ ] 3. Identify the implemented features, check if there are any bugs obvious from the code perspective. Create docs for future work, to keep best practices in place
 
-### Phase 4 — Performance
-- [ ] 4.1 Adopt React Query across all 16 data hooks
-- [ ] 4.2 Memoize list components (`ExpenseList`, `IncomeList`, `DebtEntriesList`)
-- [ ] 4.3 Virtualize long lists with `@tanstack/react-virtual`
-
-### Phase 5 — Deployment
-- [ ] 5.1 **[Human]** Add prod domain to GCP OAuth credentials
-- [ ] 5.2 **[Human]** Set `VITE_GOOGLE_CLIENT_ID` in hosting env (Netlify/Vercel)
-- [ ] 5.3 Add hosting config (`netlify.toml` or `vercel.json` with SPA redirect rules)
+### Phase 4 - Publish ready
+- [ ] 4. In the clean codebase, and with all the features identified, create an implementation plan to fill in the gaps, suggest relevant changes to make this project publishable
