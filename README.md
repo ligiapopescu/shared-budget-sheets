@@ -1,5 +1,7 @@
 # Shared Budget Sheets
 
+**Live:** https://shared-budget-sheets.netlify.app
+
 A household budget tracker where **your data lives in your own Google Spreadsheet**. Track expenses, income, savings, and shared debts without ever sending a row to a server we control — the browser talks straight to the Google Sheets and Drive APIs.
 
 ## What it does
