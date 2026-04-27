@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { HouseholdCategoryGroup } from '@/interfaces/household-category-groups';
 import { newId, nowIso } from '@/integrations/google/client';
+import { getHouseholdIdForUser } from '@/integrations/google/householdScope';
 
 // household_category_groups: 0:id 1:household_id 2:name 3:color 4:icon 5:display_order 6:created_at 7:updated_at
 const deserialize = (r: string[]): HouseholdCategoryGroup => ({
@@ -21,10 +22,7 @@ export const useHouseholdCategoryGroups = () => {
     if (!user || !sheetsService) return;
     try {
       setLoading(true);
-      const persons = await sheetsService.getWhereMultiple(
-        'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
-      );
-      const hid = persons[0]?.[2] ?? null;
+      const hid = await getHouseholdIdForUser(sheetsService, user.id);
       setHouseholdId(hid);
       if (!hid) { setGroups([]); return; }
       const data = await sheetsService.getWhere('household_category_groups', 'household_id', hid, deserialize);

@@ -18,7 +18,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Check, X, Trash2, AlertCircle, CheckCircle, XCircle, RotateCcw, User, FolderEdit } from 'lucide-react';
-import { Category, CategoryGroup } from '@/interfaces';
+import { Category, CategoryGroup, ExpenseSplit } from '@/interfaces';
 import { HouseholdPerson } from '@/interfaces/debt';
 import { DataTable, ColumnDef, BulkAction } from '@/components/ui/data-table';
 import { useState } from 'react';
@@ -30,13 +30,6 @@ import BulkChangeCategoryDialog from '@/components/debt/BulkChangeCategoryDialog
 import BulkSplitPendingExpenseDialog from '@/components/file-upload/BulkSplitPendingExpenseDialog';
 import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 import { useInlineEdit } from '@/hooks/useInlineEdit';
-
-interface ExpenseSplit {
-  household_person_id: string;
-  household_person_name: string;
-  split_method: 'amount' | 'percentage';
-  split_value: number;
-}
 
 interface PendingExpense {
   tempId: string;

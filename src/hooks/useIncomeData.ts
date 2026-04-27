@@ -3,6 +3,7 @@ import { Income } from '@/interfaces';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { newId, nowIso } from '@/integrations/google/client';
+import { getAllowedUserIds, getHouseholdIdForUser } from '@/integrations/google/householdScope';
 
 // income: 0:id 1:date 2:source 3:amount 4:currency 5:user_id 6:description 7:household_id 8:created_at 9:updated_at
 const deserialize = (r: string[]): Income => ({
@@ -20,18 +21,7 @@ export const useIncomeData = (includeHouseholdData = false) => {
     if (!user || !sheetsService) return;
     try {
       setLoading(true);
-      const allowedIds = new Set([user.id]);
-
-      if (includeHouseholdData) {
-        const persons = await sheetsService.getWhereMultiple(
-          'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
-        );
-        persons.forEach(r => {
-          if (r[1]) allowedIds.add(r[1]);
-          if (r[5]) allowedIds.add(r[5]);
-        });
-      }
-
+      const allowedIds = await getAllowedUserIds(sheetsService, user.id, includeHouseholdData);
       const all = await sheetsService.getAll('income', deserialize);
       const filtered = all
         .filter(i => allowedIds.has(i.user_id))
@@ -45,18 +35,10 @@ export const useIncomeData = (includeHouseholdData = false) => {
 
   useEffect(() => { loadIncomes(); }, [loadIncomes]);
 
-  const getHouseholdId = async () => {
-    if (!sheetsService || !user) return null;
-    const rows = await sheetsService.getWhereMultiple(
-      'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
-    );
-    return rows[0]?.[2] ?? null;
-  };
-
   const addIncome = async (incomeData: Omit<Income, 'id' | 'user_id'>) => {
     if (!user || !sheetsService) return;
     const now = nowIso();
-    const hid = await getHouseholdId();
+    const hid = await getHouseholdIdForUser(sheetsService, user.id);
     const income: Income = { ...incomeData, id: newId(), user_id: user.id };
     setIncomes(prev => [income, ...prev]);
     try {

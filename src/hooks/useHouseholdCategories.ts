@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { HouseholdCategory } from '@/interfaces/household-categories';
 import { newId, nowIso } from '@/integrations/google/client';
+import { getHouseholdIdForUser } from '@/integrations/google/householdScope';
 
 // household_categories: 0:id 1:household_id 2:name 3:color 4:is_default 5:group_id 6:created_at 7:updated_at
 const deserialize = (r: string[]): HouseholdCategory => ({
@@ -17,19 +18,11 @@ export const useHouseholdCategories = () => {
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const getHouseholdId = useCallback(async () => {
-    if (!sheetsService || !user) return null;
-    const rows = await sheetsService.getWhereMultiple(
-      'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
-    );
-    return rows[0]?.[2] ?? null;
-  }, [sheetsService, user]);
-
   const loadCategories = useCallback(async () => {
     if (!user || !sheetsService) return;
     try {
       setLoading(true);
-      const hid = await getHouseholdId();
+      const hid = await getHouseholdIdForUser(sheetsService, user.id);
       if (!hid) { setCategories([]); return; }
       const data = await sheetsService.getWhere('household_categories', 'household_id', hid, deserialize);
       setCategories(data.sort((a, b) => a.name.localeCompare(b.name)));
@@ -37,7 +30,7 @@ export const useHouseholdCategories = () => {
       console.error('Error loading household categories:', e);
       toast({ title: 'Error', description: 'Failed to load household categories', variant: 'destructive' });
     } finally { setLoading(false); }
-  }, [user, sheetsService, getHouseholdId]);
+  }, [user, sheetsService]);
 
   useEffect(() => { loadCategories(); }, [loadCategories]);
 

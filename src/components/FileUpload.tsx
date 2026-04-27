@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Expense, Category, CategoryGroup, ExpenseAutomationRule } from '@/interfaces';
+import { Expense, Category, CategoryGroup, ExpenseAutomationRule, ExpenseSplit } from '@/interfaces';
 import FileUploadDropzone from './file-upload/FileUploadDropzone';
 import ExpenseReviewSection from './file-upload/ExpenseReviewSection';
 import FileFormatGuide from './file-upload/FileFormatGuide';
@@ -17,14 +17,6 @@ interface FileUploadProps {
   categories: Category[];
   categoryGroups?: CategoryGroup[];
   getMerchantCategory: (merchant: string) => string;
-}
-
-interface ExpenseSplit {
-  household_person_id: string;
-  household_person_name: string;
-  split_method: 'amount' | 'percentage';
-  split_value: number;
-  debt_entry_id?: string;
 }
 
 interface PendingExpense extends Omit<Expense, 'id' | 'user_id' | 'splits'> {

@@ -14,14 +14,8 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { HouseholdPerson } from '@/interfaces/debt';
+import { ExpenseSplit } from '@/interfaces';
 import { toast } from 'sonner';
-
-interface ExpenseSplit {
-  household_person_id: string;
-  household_person_name: string;
-  split_method: 'amount' | 'percentage';
-  split_value: number;
-}
 
 interface PendingExpense {
   tempId: string;

@@ -3,6 +3,7 @@ import { SavingsAccount, SavingsSnapshot } from '@/interfaces/savings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { newId, nowIso } from '@/integrations/google/client';
+import { getAllowedUserIds, getHouseholdIdForUser } from '@/integrations/google/householdScope';
 
 // savings_accounts: 0:id 1:user_id 2:name 3:account_type 4:currency 5:holding_type
 //                   6:stock_symbol 7:stock_name 8:description 9:household_id 10:created_at 11:updated_at
@@ -35,17 +36,7 @@ export const useSavingsData = (includeHouseholdData = false) => {
     if (!user || !sheetsService) return;
     try {
       setLoading(true);
-      const allowedIds = new Set([user.id]);
-
-      if (includeHouseholdData) {
-        const persons = await sheetsService.getWhereMultiple(
-          'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
-        );
-        persons.forEach(r => {
-          if (r[1]) allowedIds.add(r[1]);
-          if (r[5]) allowedIds.add(r[5]);
-        });
-      }
+      const allowedIds = await getAllowedUserIds(sheetsService, user.id, includeHouseholdData);
 
       const [allAccounts, allSnapshots] = await Promise.all([
         sheetsService.getAll('savings_accounts', deserializeAccount),
@@ -66,18 +57,10 @@ export const useSavingsData = (includeHouseholdData = false) => {
 
   useEffect(() => { loadSavingsData(); }, [loadSavingsData]);
 
-  const getHouseholdId = async () => {
-    if (!sheetsService || !user) return null;
-    const rows = await sheetsService.getWhereMultiple(
-      'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
-    );
-    return rows[0]?.[2] ?? null;
-  };
-
   const addSavingsAccount = async (account: Omit<SavingsAccount, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     if (!user || !sheetsService) return;
     const now = nowIso();
-    const hid = await getHouseholdId();
+    const hid = await getHouseholdIdForUser(sheetsService, user.id);
     const acc: SavingsAccount = { ...account, id: newId(), user_id: user.id, created_at: now, updated_at: now };
     setSavingsAccounts(prev => [...prev, acc]);
     try {
@@ -98,7 +81,7 @@ export const useSavingsData = (includeHouseholdData = false) => {
     notes?: string, stockQuantity?: number, stockPricePerShare?: number,
   ) => {
     if (!user || !sheetsService) return;
-    const hid = await getHouseholdId();
+    const hid = await getHouseholdIdForUser(sheetsService, user.id);
     const now = nowIso();
 
     // Find existing snapshot for this account/month/year

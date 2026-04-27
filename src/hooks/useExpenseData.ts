@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Expense, Category, CategoryGroup, ExpenseSplit } from '@/interfaces';
 import { toast } from 'sonner';
 import { newId, nowIso } from '@/integrations/google/client';
+import { getHouseholdIdForUser } from '@/integrations/google/householdScope';
 
 // expenses: 0:id 1:date 2:merchant 3:amount 4:currency 5:category_id
 //           6:user_id 7:description 8:household_id 9:created_at 10:updated_at
@@ -109,13 +110,8 @@ export const useExpenseData = (includeHouseholdData = false) => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const getHouseholdId = async (): Promise<string | null> => {
-    if (!sheetsService || !user) return null;
-    const rows = await sheetsService.getWhereMultiple(
-      'household_persons', r => r[1] === user.id || r[5] === user.id, r => r,
-    );
-    return rows[0]?.[2] ?? null;
-  };
+  const getHouseholdId = (): Promise<string | null> =>
+    sheetsService && user ? getHouseholdIdForUser(sheetsService, user.id) : Promise.resolve(null);
 
   const resolveCategoryId = async (categoryName: string): Promise<string | undefined> => {
     const local = categories.find(c => c.name === categoryName);
