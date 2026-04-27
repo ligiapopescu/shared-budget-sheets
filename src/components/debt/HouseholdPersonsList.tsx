@@ -16,7 +16,7 @@ interface HouseholdPersonsListProps {
   onUpdatePerson: (id: string, personData: Partial<HouseholdPerson>) => void;
   onDeletePerson: (id: string) => void;
   onAddPerson: () => void;
-  onInviteUser?: (householdPersonId: string, email: string) => Promise<void>;
+  onInviteUser?: (householdPersonId: string, email: string) => Promise<{ joinUrl: string }>;
   onUnlinkUser?: (householdPersonId: string) => Promise<void>;
 }
 
@@ -91,9 +91,8 @@ const HouseholdPersonsList = ({
   };
 
   const handleInviteSubmit = async (householdPersonId: string, email: string) => {
-    if (onInviteUser) {
-      await onInviteUser(householdPersonId, email);
-    }
+    if (!onInviteUser) return { joinUrl: '' };
+    return onInviteUser(householdPersonId, email);
   };
 
   const handleUnlinkUser = async (householdPersonId: string) => {

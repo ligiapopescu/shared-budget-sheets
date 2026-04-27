@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { HouseholdPerson, DebtEntry, HouseholdInvitation } from '@/interfaces/debt';
 import { newId, nowIso } from '@/integrations/google/client';
 import { parseFloatCell, parseFloatOpt } from '@/integrations/google/parsing';
+import { DriveService } from '@/integrations/google/driveService';
 
 // household_persons: 0:id 1:user_id 2:household_id 3:name 4:email 5:connected_user_id 6:include_in_household_view 7:created_at 8:updated_at
 const deserializePerson = (r: string[]): HouseholdPerson => ({
@@ -26,7 +27,7 @@ const deserializeDebt = (r: string[]): Omit<DebtEntry, 'household_person' | 'cre
 // profiles: 0:id 1:email 2:full_name 3:created_at 4:updated_at
 
 export const useHouseholdData = () => {
-  const { user, sheetsService } = useAuth();
+  const { user, sheetsService, spreadsheetId, getAccessToken } = useAuth();
   const [householdPersons, setHouseholdPersons] = useState<HouseholdPerson[]>([]);
   const [debtEntries, setDebtEntries] = useState<DebtEntry[]>([]);
   const [invitations, setInvitations] = useState<HouseholdInvitation[]>([]);
@@ -203,8 +204,12 @@ export const useHouseholdData = () => {
 
   // ── Invitations ──────────────────────────────────────────────────────
 
-  const inviteUser = async (householdPersonId: string, email: string) => {
-    if (!user || !sheetsService) return;
+  const inviteUser = async (householdPersonId: string, email: string): Promise<{ joinUrl: string }> => {
+    if (!user || !sheetsService) throw new Error('Not authenticated');
+    const accessToken = getAccessToken();
+    const sid = spreadsheetId;
+    if (!accessToken || !sid) throw new Error('Spreadsheet not connected');
+
     // Capture the previous email so we can revert if the invitation row write fails.
     const previousEmail = householdPersons.find(p => p.id === householdPersonId)?.email ?? '';
     await sheetsService.updateById('household_persons', householdPersonId, { email });
@@ -222,7 +227,21 @@ export const useHouseholdData = () => {
       } catch { /* best-effort */ }
       throw e;
     }
+
+    // Grant the invitee writer access on the underlying Drive file. Without
+    // this, opening the spreadsheet in their browser would 403. We don't
+    // ask Drive to send a notification email — the inviter shares the
+    // join link manually so they control the channel and message.
+    try {
+      await new DriveService(accessToken).shareSpreadsheet(sid, email, { sendNotificationEmail: false });
+    } catch (e) {
+      // Don't roll back the invitation row on a share failure. The invitee
+      // can still be added manually via Drive's UI; surface a warning.
+      console.warn('[invite] failed to share Drive file:', e);
+    }
+
     await loadData();
+    return { joinUrl: `${window.location.origin}/auth?join=${sid}` };
   };
 
   const acceptInvitation = async (invitationId: string) => {

@@ -21,6 +21,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { GoogleSheetsService, DriveService } from '@/integrations/google/client';
+import { reconcileUser } from '@/integrations/google/reconcileUser';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,10 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateUserMetadata: (key: keyof UserMetadata, value: string) => void;
   refreshToken: () => void;
+  // Returns the current short-lived OAuth access token, or null if not
+  // signed in. Used by callers that need to construct ad-hoc clients
+  // (e.g. DriveService) outside the always-on sheetsService.
+  getAccessToken: () => string | null;
   createNewSpreadsheet: () => Promise<void>;
   connectToSpreadsheet: (spreadsheetId: string) => Promise<void>;
 }
@@ -86,10 +91,31 @@ function saveMeta(userId: string, meta: UserMetadata) {
   localStorage.setItem(metaKey(userId), JSON.stringify(meta));
 }
 
-// Find the user's household spreadsheet by querying their own Drive. Tries
-// the modern app-property tag first; falls back to a legacy title search
-// for users whose sheet predates the tagging change (and tags it on hit).
+// Find the user's household spreadsheet. Order:
+//   1. `?join=<id>` query param (invite-link path) — wins over everything,
+//      so an invitee who clicks a join link always lands on the inviter's
+//      sheet even if they previously had their own.
+//   2. App-private Drive tag (`shared_budget_sheets=1`).
+//   3. Title-based legacy fallback (and tag-on-hit so future sign-ins
+//      take the fast path).
+function readJoinIdFromUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  const id = new URLSearchParams(window.location.search).get('join');
+  if (!id) return null;
+  // Spreadsheet IDs are URL-safe alphanum + - and _; drop anything else.
+  return /^[a-zA-Z0-9_-]+$/.test(id) ? id : null;
+}
+
+function clearJoinIdFromUrl() {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('join');
+  window.history.replaceState({}, '', url.toString());
+}
+
 async function resolveSpreadsheetId(drive: DriveService, email: string): Promise<string | null> {
+  const join = readJoinIdFromUrl();
+  if (join) return join;
   const tagged = await drive.findTaggedSpreadsheet();
   if (tagged) return tagged;
   const byTitle = await drive.findSpreadsheetByTitle(spreadsheetTitle(email));
@@ -192,11 +218,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (sid) {
         const svc = new GoogleSheetsService(sid, accessToken, refreshAccessTokenAsync);
         await svc.initializeSpreadsheet();
-        const existing = await svc.getWhere('profiles', 'id', sub, r => r);
-        if (existing.length === 0) {
-          const now = new Date().toISOString();
-          await svc.appendRow('profiles', [sub, email, name, now, now]);
-        }
+        // Tag the sheet (idempotent) so future sign-ins find it on this
+        // account too — important for invitees who landed via ?join=<id>.
+        new DriveService(accessToken)
+          .tagSpreadsheet(sid)
+          .catch(e => console.warn('[Auth] failed to tag joined spreadsheet:', e));
+        // Reconcile profile + invitations by email — claims any legacy
+        // (Supabase-era) row that already represented this user, and
+        // auto-accepts pending invitations.
+        await reconcileUser({ svc, userId: sub, email, fullName: name });
+        clearJoinIdFromUrl();
         setSpreadsheetId(sid);
         setSheetsService(svc);
         serviceRef.current = svc;
@@ -214,11 +245,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!accessToken || !user) throw new Error('Not authenticated');
     const svc = new GoogleSheetsService(sid, accessToken, refreshAccessTokenAsync);
     await svc.initializeSpreadsheet();
-    const existing = await svc.getWhere('profiles', 'id', user.id, r => r);
-    if (existing.length === 0) {
-      const now = new Date().toISOString();
-      await svc.appendRow('profiles', [user.id, user.email, user.name, now, now]);
-    }
+    // Reconcile profile + invitations by email — claims a legacy row if
+    // one matches the signed-in email, otherwise inserts a new profile.
+    await reconcileUser({ svc, userId: user.id, email: user.email, fullName: user.name });
     // Tag in Drive so future sign-ins (any device, any browser) can find
     // this spreadsheet without relying on local storage. Best-effort.
     new DriveService(accessToken)
@@ -330,6 +359,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshToken = () => { triggerSilentLogin(); };
 
+  const getAccessToken = () => latestTokenRef.current;
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -341,6 +372,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       signOut,
       updateUserMetadata,
       refreshToken,
+      getAccessToken,
       createNewSpreadsheet,
       connectToSpreadsheet,
     }}>

@@ -214,6 +214,27 @@ export class GoogleSheetsService {
     });
   }
 
+  // Server-side find/replace across the entire spreadsheet. matchEntireCell
+  // is set so a UUID isn't replaced when it appears as a substring of some
+  // longer text. Used by the email-based reconciliation flow to rewrite a
+  // legacy Supabase user-id to the signed-in user's Google sub everywhere
+  // it appears, in a single round-trip. Invalidates every per-sheet
+  // row-id cache because positions don't shift but contents do.
+  async findReplaceAcrossSpreadsheet(find: string, replacement: string): Promise<void> {
+    if (!find || find === replacement) return;
+    await this.batchUpdate([{
+      findReplace: {
+        find,
+        replacement,
+        matchEntireCell: true,
+        matchCase: true,
+        searchByRegex: false,
+        allSheets: true,
+      },
+    }]);
+    this.cache.clear();
+  }
+
   // ── Generic CRUD ────────────────────────────────────────────────────────
 
   async getAll<T>(sheetName: SheetName, deserialize: (row: string[]) => T): Promise<T[]> {

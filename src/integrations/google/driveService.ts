@@ -86,9 +86,17 @@ export class DriveService {
   }
 
   // Shares the spreadsheet with another Google account as an editor.
-  async shareSpreadsheet(spreadsheetId: string, email: string): Promise<void> {
+  // sendNotificationEmail defaults to false — the inviter sends the join
+  // link manually (chat / their own email / etc.) so the user has full
+  // control of the message and Drive doesn't surprise the invitee.
+  async shareSpreadsheet(
+    spreadsheetId: string,
+    email: string,
+    options: { sendNotificationEmail?: boolean } = {},
+  ): Promise<void> {
+    const sendNotif = options.sendNotificationEmail ?? false;
     const res = await fetch(
-      `${this.driveBase}/${spreadsheetId}/permissions`,
+      `${this.driveBase}/${spreadsheetId}/permissions?sendNotificationEmail=${sendNotif}`,
       {
         method: 'POST',
         headers: this.headers(),
