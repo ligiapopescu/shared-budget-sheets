@@ -64,22 +64,24 @@ If the first call succeeds and the second fails, the user's `user_id` is in the 
 
 **Fix shape**: try/catch the second write and on failure, attempt to revert the first write before surfacing the error. Sheets has no transactions; ordering matters — write the harder-to-undo side first.
 
-### 4. Stale 30-second row-index cache can write the wrong row
+### 4. 🚧 Stale 30-second row-index cache can write the wrong row
+**Mitigated** in Phase 4 wave 3. TTL dropped from 30s → 2s, and `findRowByIdIndex` now refetches once if the cached snapshot doesn't contain the target id. Local writes still invalidate eagerly. Doesn't fully eliminate the cross-client write window — for that we'd need to drop the cache entirely or move to a row-id-keyed Sheets API call. Acceptable for now.
 [`src/integrations/google/sheetsService.ts:97-108`](src/integrations/google/sheetsService.ts:97)
 
 `findRowByIdIndex` caches the array of ids per sheet for 30 seconds. The cached **index** is positional. If another household member inserts or deletes a row during that window, every subsequent `updateRow` from the cache hit will target the wrong sheet row.
 
 **Fix shape**: either invalidate on every read (kills the perf benefit) or stop using positional indexes — use the id column for matching directly and accept a per-call `getRange` cost. Cheapest mitigation: shorten TTL to a few seconds or cache only within the duration of a single user gesture.
 
-### 5. `updateExpense` race deletes splits before re-creating them
+### 5. ✅ `updateExpense` race deletes splits before re-creating them
+**Fixed** in Phase 4 wave 3. `useExpenseData` keeps an in-flight `Map<id, Promise>`; concurrent `updateExpense` calls for the same expense id now serialise instead of interleaving.
 [`src/hooks/useExpenseData.ts:178-233`](src/hooks/useExpenseData.ts:178)
 
 When edited splits change, the hook deletes all existing `debt_entries` for the expense and then writes the new ones. Two concurrent `updateExpense` calls for the same expense (e.g., two tabs, or the user clicks fast) can interleave so the second call's "delete old splits" wipes the first call's freshly-written splits.
 
 **Fix shape**: either guard the operation with an in-flight `Set<expenseId>` and reject overlap, or compute a diff (delete only debt rows that are leaving, insert only ones that are new) so the operation is idempotent under interleaving.
 
-### 6. 🚧 Currency conversion silently returns un-converted amount
-**Partial** in Phase 4 wave 2. The function still returns the unconverted amount on a missing rate (so the API stays non-breaking), but it now `console.warn`s once per missing pair and exposes a new `isRateAvailable(from, to)` helper that callers can use to render a "rate unknown" indicator. Updating display call sites is open work.
+### 6. ✅ Currency conversion silently returns un-converted amount
+**Fixed across waves 2 and 3.** The hook still returns the unconverted amount on a missing rate (non-breaking) but now warns once per pair and exposes `isRateAvailable(from, to)`. Wave 3 added a `<MissingRateBanner>` on the main app screen that lights up when any expense or income currency lacks a path to the user's display currency, so the limitation is now visible to the user instead of buried in console output.
 [`src/hooks/useCurrencyConverter.ts:32-40`](src/hooks/useCurrencyConverter.ts:32)
 
 If neither a direct rate (A→B) nor a USD-pivot pair (A→USD and USD→B) exists, `convertAmount` returns `amount` unchanged. The caller then renders it labelled with the target currency. The user sees `$50` for what is actually `€50` and has no way to know.
@@ -106,12 +108,14 @@ The OAuth implicit flow gives a short-lived access token (3600s). Nothing in `Au
 
 ## Medium
 
-### 9. `getOrCreateHouseholdId` writes household + person separately
+### 9. ✅ `getOrCreateHouseholdId` writes household + person separately
+**Fixed** in Phase 4 wave 3. The household_persons write is now wrapped in try/catch; on failure the orphan household row is best-effort deleted before re-throwing.
 [`src/hooks/useHouseholdData.ts:108-124`](src/hooks/useHouseholdData.ts:108)
 
 Two `appendRow` calls with no error handling. If the second fails, the household exists but has no member. Returns the household id either way, so callers happily proceed to write data into a phantom household. Less likely to bite (small write, fast succession) but the same shape as bug #3.
 
-### 10. `parseFloat`/`parseInt` errors are swallowed
+### 10. ✅ `parseFloat`/`parseInt` errors are swallowed
+**Fixed** in Phase 4 wave 3. New `src/integrations/google/parsing.ts` exports `parseFloatCell`, `parseIntCell`, and `parseFloatOpt` helpers that warn (once per "context:value" pair) when a non-empty cell fails to parse. Wired into the deserializers in `useExpenseData`, `useIncomeData`, `useSavingsData`, and `useHouseholdData`.
 Multiple deserializers across hooks use `parseFloat(r[i]) || 0` and `parseInt(r[i]) || 0`. If a sheet cell is corrupted (e.g., the user manually edited a number cell to "abc"), the row deserializes with that field as `0`. There's no way for the app to surface "this row had a malformed number." The display shows `0`, which is a plausible value.
 
 **Fix shape**: at the very least, `console.warn` when a numeric parse falls through to the default. Optional: collect a "rows we couldn't fully parse" list and surface a banner in the UI.
@@ -121,7 +125,8 @@ Multiple deserializers across hooks use `parseFloat(r[i]) || 0` and `parseInt(r[
 
 `detectColumnIndices` lowercases headers; the column-mapping dialog re-reads the original casing of `lines[0]`. If a header has mixed case, the auto-detected index can be off-by-one when the dialog reopens.
 
-### 12. CSV upload has no row-count cap
+### 12. ✅ CSV upload has no row-count cap
+**Fixed** in Phase 4 wave 3. Files with more than 5,000 data rows are rejected up-front with a toast asking the user to split the import.
 A 50k-row CSV will be parsed and held entirely in memory before review, then uploaded one `appendRow` at a time. Large uploads will lock the UI and may exhaust the Sheets API quota. No batching, no progress, no cap.
 
 **Fix shape**: cap at e.g. 5000 rows with a UI warning, or batch uploads with `values:append` (which already accepts an array of rows).

@@ -4,10 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { newId, nowIso } from '@/integrations/google/client';
 import { getAllowedUserIds, getHouseholdIdForUser } from '@/integrations/google/householdScope';
+import { parseFloatCell } from '@/integrations/google/parsing';
 
 // income: 0:id 1:date 2:source 3:amount 4:currency 5:user_id 6:description 7:household_id 8:created_at 9:updated_at
 const deserialize = (r: string[]): Income => ({
-  id: r[0], date: r[1], source: r[2], amount: parseFloat(r[3]) || 0,
+  id: r[0], date: r[1], source: r[2],
+  amount: parseFloatCell(r[3], 0, 'income.amount'),
   currency: r[4], user_id: r[5], description: r[6] || undefined,
 });
 

@@ -106,8 +106,18 @@ These should not be implemented without input from the project owner.
 - [BUGS.md #7](BUGS.md) High: CSV auto-detect now samples date cells before committing to YYYY-MM-DD; if the format doesn't match, the user is forced into the column-mapping dialog with an explicit prompt.
 - [BUGS.md #8](BUGS.md) High: token expiry now handled. Proactive refresh at `expires_in - 60s`, plus a 401-retry path inside `GoogleSheetsService.request()` that awaits a silent re-auth and retries the request once.
 
+## Done in wave 3
+
+- [BUGS.md #4](BUGS.md) High: row-index cache TTL dropped from 30s to 2s, plus a one-shot refetch when the cached snapshot doesn't contain the target id. Doesn't fully eliminate cross-client write windows but shrinks them by an order of magnitude.
+- [BUGS.md #5](BUGS.md) High: `updateExpense` is now serialised per expense id via an in-flight `Map<id, Promise>` so concurrent saves can't interleave their split-rebuild step.
+- [BUGS.md #6](BUGS.md) High: a new `<MissingRateBanner>` lights up on the main app screen when any expense/income currency lacks a path to the display currency, so the silent-fallthrough limitation is now visible to the user.
+- [BUGS.md #9](BUGS.md) Medium: `getOrCreateHouseholdId` now reverts the household row if the household_persons write fails, instead of leaving an orphan.
+- [BUGS.md #10](BUGS.md) Medium: new `parsing.ts` helpers (`parseFloatCell`, `parseIntCell`, `parseFloatOpt`) warn once per malformed cell value. Wired into the four heaviest deserializers.
+- [BUGS.md #12](BUGS.md) Medium: CSV upload now rejects files with more than 5,000 data rows up-front.
+
 ## Still open / next waves
 
-- BUGS.md #4 (stale 30s row-index cache), #5 (`updateExpense` split race), #9 (non-atomic `getOrCreateHouseholdId`), and the Medium/Low items.
-- Wire `isRateAvailable` into the display call sites that render multi-currency totals so the user actually sees a "rate unknown" indicator instead of a lurking warning in the console.
-- Wave 3 product-decision items (hosting, telemetry, OAuth verification, branding).
+- BUGS.md #11 (CSV header casing in re-parse — edge case), #13 (rate-limit retry amplification under 429 — invasive, low-frequency), #14 (`useEffect` deps audit — mostly intentional one-shot loads).
+- Wave 4 product-decision items (hosting, telemetry, OAuth verification, branding).
+- Component splits deferred from Phase 2c — `ExpenseList` (731 LOC), `DebtEntriesList` (766), `FileUpload` (684), `DashboardCharts` (651), `Index.tsx` tab orchestration.
+- Automated tests + CI.

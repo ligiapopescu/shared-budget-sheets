@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Expense, Category, CategoryGroup, ExpenseSplit } from '@/interfaces';
 import { toast } from 'sonner';
 import { newId, nowIso } from '@/integrations/google/client';
 import { getHouseholdIdForUser } from '@/integrations/google/householdScope';
+import { parseFloatCell } from '@/integrations/google/parsing';
 
 // expenses: 0:id 1:date 2:merchant 3:amount 4:currency 5:category_id
 //           6:user_id 7:description 8:household_id 9:created_at 10:updated_at
@@ -17,6 +18,10 @@ export const useExpenseData = (includeHouseholdData = false) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  // Serialises updateExpense calls per expense id. Without this, two
+  // back-to-back saves on the same row can interleave so one's "delete
+  // old splits" wipes the other's freshly-written splits.
+  const inFlightUpdatesRef = useRef<Map<string, Promise<unknown>>>(new Map());
 
   const loadData = useCallback(async () => {
     if (!user || !sheetsService) return;
@@ -88,11 +93,11 @@ export const useExpenseData = (includeHouseholdData = false) => {
             household_person_id: d[2],
             household_person_name: hpNameMap.get(d[2]) ?? d[2],
             split_method: d[9] as 'amount' | 'percentage',
-            split_value: parseFloat(d[10]) || 0,
+            split_value: parseFloatCell(d[10], 0, 'debt_entries.split_value'),
             debt_entry_id: d[0],
           }));
           return {
-            id: r[0], date: r[1], merchant: r[2], amount: parseFloat(r[3]) || 0,
+            id: r[0], date: r[1], merchant: r[2], amount: parseFloatCell(r[3], 0, 'expenses.amount'),
             currency: r[4], category: catMap.get(r[5]) ?? 'Unknown',
             user_id: r[6], description: r[7] || undefined,
             splits: splits.length > 0 ? splits : undefined,
@@ -209,6 +214,13 @@ export const useExpenseData = (includeHouseholdData = false) => {
 
   const updateExpense = async (id: string, expenseData: Partial<Expense>) => {
     if (!sheetsService) return;
+    // Serialise per-id: wait for any in-flight update for this same expense
+    // to settle before starting ours, so the split-rebuild step can't
+    // interleave with a concurrent caller.
+    const previous = inFlightUpdatesRef.current.get(id);
+    if (previous) await previous.catch(() => {});
+
+    const run = async () => {
     const existing = expenses.find(e => e.id === id);
     if (!existing) return;
 
@@ -262,6 +274,17 @@ export const useExpenseData = (includeHouseholdData = false) => {
       category: expenseData.category ?? e.category,
       splits: splitsInfo,
     } : e));
+    };
+
+    const promise = run();
+    inFlightUpdatesRef.current.set(id, promise);
+    try {
+      await promise;
+    } finally {
+      if (inFlightUpdatesRef.current.get(id) === promise) {
+        inFlightUpdatesRef.current.delete(id);
+      }
+    }
   };
 
   const deleteExpense = async (id: string) => {

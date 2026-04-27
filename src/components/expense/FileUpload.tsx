@@ -360,11 +360,23 @@ const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantC
       try {
         const text = e.target?.result as string;
         const lines = text.split('\n').filter(line => line.trim());
-        
+
         if (lines.length < 2) {
           throw new Error('File must contain at least a header row and one data row');
         }
-        
+
+        // Cap to keep the review screen responsive and to avoid burning the
+        // Sheets API quota on a single import. Each row eventually becomes
+        // an appendRow call; a 50k-row CSV would take many minutes and may
+        // exceed the per-minute write limit.
+        const ROW_CAP = 5000;
+        if (lines.length - 1 > ROW_CAP) {
+          throw new Error(
+            `File has ${lines.length - 1} data rows; the import limit is ${ROW_CAP}. ` +
+            'Split the file and upload in batches.',
+          );
+        }
+
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
         const { dateIndex, merchantIndex, amountIndex, currencyIndex, categoryIndex } = detectColumnIndices(headers);
 

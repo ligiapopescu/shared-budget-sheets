@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { newId, nowIso } from '@/integrations/google/client';
 import { getAllowedUserIds, getHouseholdIdForUser } from '@/integrations/google/householdScope';
+import { parseFloatCell, parseFloatOpt, parseIntCell } from '@/integrations/google/parsing';
 
 // savings_accounts: 0:id 1:user_id 2:name 3:account_type 4:currency 5:holding_type
 //                   6:stock_symbol 7:stock_name 8:description 9:household_id 10:created_at 11:updated_at
@@ -18,10 +19,11 @@ const deserializeAccount = (r: string[]): SavingsAccount => ({
 //                    6:stock_quantity 7:stock_price_per_share 8:notes 9:household_id 10:created_at 11:updated_at
 const deserializeSnapshot = (r: string[]): SavingsSnapshot => ({
   id: r[0], user_id: r[1], savings_account_id: r[2],
-  month: parseInt(r[3]) || 0, year: parseInt(r[4]) || 0,
-  balance: parseFloat(r[5]) || 0,
-  stock_quantity: r[6] ? parseFloat(r[6]) : undefined,
-  stock_price_per_share: r[7] ? parseFloat(r[7]) : undefined,
+  month: parseIntCell(r[3], 0, 'savings_snapshots.month'),
+  year: parseIntCell(r[4], 0, 'savings_snapshots.year'),
+  balance: parseFloatCell(r[5], 0, 'savings_snapshots.balance'),
+  stock_quantity: parseFloatOpt(r[6], 'savings_snapshots.stock_quantity'),
+  stock_price_per_share: parseFloatOpt(r[7], 'savings_snapshots.stock_price_per_share'),
   notes: r[8] || undefined, created_at: r[10] ?? '', updated_at: r[11] ?? '',
 });
 

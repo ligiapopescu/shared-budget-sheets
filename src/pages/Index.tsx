@@ -7,6 +7,7 @@ import SpendingSummary from '@/components/dashboard/SpendingSummary';
 import FileUpload from '@/components/expense/FileUpload';
 import AppHeader from '@/components/AppHeader';
 import AppNavigation from '@/components/AppNavigation';
+import { MissingRateBanner } from '@/components/MissingRateBanner';
 import DashboardStats from '@/components/dashboard/DashboardStats';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
 import FixedExpenses from '@/components/expense/FixedExpenses';
@@ -52,6 +53,14 @@ const Index = () => {
         <div className="mb-8">
           <AppNavigation activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
+
+        <MissingRateBanner
+          sourceCurrencies={[
+            ...expenses.map(e => e.currency),
+            ...incomes.map(i => i.currency),
+          ]}
+          displayCurrency={displayCurrency}
+        />
 
         {/* Dashboard Stats */}
         {activeTab === 'dashboard' && (

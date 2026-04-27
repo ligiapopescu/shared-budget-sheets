@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { HouseholdPerson, DebtEntry, HouseholdInvitation } from '@/interfaces/debt';
 import { newId, nowIso } from '@/integrations/google/client';
+import { parseFloatCell, parseFloatOpt } from '@/integrations/google/parsing';
 
 // household_persons: 0:id 1:user_id 2:household_id 3:name 4:email 5:connected_user_id 6:include_in_household_view 7:created_at 8:updated_at
 const deserializePerson = (r: string[]): HouseholdPerson => ({
@@ -13,11 +14,11 @@ const deserializePerson = (r: string[]): HouseholdPerson => ({
 // debt_entries: 0:id 1:user_id 2:household_person_id 3:amount 4:currency 5:description
 //               6:date 7:type 8:expense_id 9:split_method 10:split_value 11:resolved 12:created_at 13:updated_at
 const deserializeDebt = (r: string[]): Omit<DebtEntry, 'household_person' | 'creator' | 'otherPersonHouseholdId'> => ({
-  id: r[0], user_id: r[1], household_person_id: r[2], amount: parseFloat(r[3]) || 0,
+  id: r[0], user_id: r[1], household_person_id: r[2], amount: parseFloatCell(r[3], 0, 'debt_entries.amount'),
   currency: r[4], description: r[5] || undefined, date: r[6],
   type: r[7] as 'owe_me' | 'i_owe', expense_id: r[8] || undefined,
   split_method: r[9] ? (r[9] as 'amount' | 'percentage') : undefined,
-  split_value: r[10] ? parseFloat(r[10]) : undefined,
+  split_value: parseFloatOpt(r[10], 'debt_entries.split_value'),
   resolved: r[11] === 'true', created_at: r[12] ?? '', updated_at: r[13] ?? '',
 });
 
@@ -115,11 +116,19 @@ export const useHouseholdData = () => {
     await sheetsService!.appendRow('households', [hid, hName, user!.id, now, now]);
 
     const selfPid = newId();
-    await sheetsService!.appendRow('household_persons', [
-      selfPid, user!.id, hid,
-      user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Me',
-      user?.email ?? '', user!.id, 'true', now, now,
-    ]);
+    try {
+      await sheetsService!.appendRow('household_persons', [
+        selfPid, user!.id, hid,
+        user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Me',
+        user?.email ?? '', user!.id, 'true', now, now,
+      ]);
+    } catch (e) {
+      // Don't leave an orphan household with no member rows. Best-effort
+      // cleanup; if this also fails the user gets a clear error and can
+      // try again — the household row will get reused next time.
+      try { await sheetsService!.delete('households', hid); } catch { /* swallow */ }
+      throw e;
+    }
     return hid;
   };
 

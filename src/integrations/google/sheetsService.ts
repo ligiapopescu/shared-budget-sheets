@@ -115,17 +115,33 @@ export class GoogleSheetsService {
 
   // Returns 0-based index into the data-rows array for a given id.
   // The actual sheet row is dataIndex + 2 (row 1 = header, row 2 = first data row).
+  //
+  // The cache exists to amortize a Promise.all burst of writes against the
+  // same sheet (e.g. delete N split debt rows). It does NOT protect against
+  // a second user inserting/deleting rows between our reads and writes —
+  // that would shift positions and our cached index would be stale. The
+  // 2-second TTL keeps the bulk-op benefit while shrinking the
+  // cross-client-write window to something low-likelihood. Local writes via
+  // appendRow / updateRow / deleteRow each invalidate the cache eagerly.
   async findRowByIdIndex(sheetName: string, id: string): Promise<number> {
     const now = Date.now();
     let entry = this.cache.get(sheetName);
     if (!entry || entry.expiresAt < now) {
       const rows = await this.getRange(sheetName, `${sheetName}!A2:A`);
-      entry = { ids: rows.map(r => r[0] ?? ''), expiresAt: now + 30_000 };
+      entry = { ids: rows.map(r => r[0] ?? ''), expiresAt: now + 2_000 };
       this.cache.set(sheetName, entry);
     }
     const idx = entry.ids.indexOf(id);
-    if (idx === -1) throw new Error(`Row with id "${id}" not found in sheet "${sheetName}"`);
-    return idx;
+    if (idx !== -1) return idx;
+    // The id wasn't in our cached snapshot. Refetch once — the row may have
+    // been added by another writer after we cached.
+    this.cache.delete(sheetName);
+    const rows = await this.getRange(sheetName, `${sheetName}!A2:A`);
+    const fresh = { ids: rows.map(r => r[0] ?? ''), expiresAt: Date.now() + 2_000 };
+    this.cache.set(sheetName, fresh);
+    const refreshed = fresh.ids.indexOf(id);
+    if (refreshed === -1) throw new Error(`Row with id "${id}" not found in sheet "${sheetName}"`);
+    return refreshed;
   }
 
   // Returns the 1-based sheet row number for an id (row 1 = header).
