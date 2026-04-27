@@ -24,7 +24,7 @@ import { DataTable, ColumnDef, BulkAction } from '@/components/ui/data-table';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import DatePickerInput from '@/components/DatePickerInput';
-import ExpenseMultiSplitManager from '@/components/ExpenseMultiSplitManager';
+import ExpenseMultiSplitManager from '@/components/expense/ExpenseMultiSplitManager';
 import CategorySelect from '@/components/CategorySelect';
 import BulkChangeCategoryDialog from '@/components/debt/BulkChangeCategoryDialog';
 import BulkSplitPendingExpenseDialog from '@/components/file-upload/BulkSplitPendingExpenseDialog';

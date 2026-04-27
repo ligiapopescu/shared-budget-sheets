@@ -7,9 +7,9 @@ import { Plus, PiggyBank, ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide
 import { useCurrencyConverter } from '@/hooks/useCurrencyConverter';
 import { useSavingsData } from '@/hooks/useSavingsData';
 import { format } from 'date-fns';
-import AddSavingsAccountDialog from './savings/AddSavingsAccountDialog';
-import UpdateBalanceDialog from './savings/UpdateBalanceDialog';
-import EditSavingsAccountDialog from './savings/EditSavingsAccountDialog';
+import AddSavingsAccountDialog from './AddSavingsAccountDialog';
+import UpdateBalanceDialog from './UpdateBalanceDialog';
+import EditSavingsAccountDialog from './EditSavingsAccountDialog';
 interface SavingsGoalsProps {
   displayCurrency?: string;
   includeHouseholdData?: boolean;

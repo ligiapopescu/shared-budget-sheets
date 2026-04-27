@@ -1,17 +1,17 @@
 
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import ExpenseList from '@/components/ExpenseList';
-import IncomeList from '@/components/IncomeList';
-import SpendingSummary from '@/components/SpendingSummary';
-import FileUpload from '@/components/FileUpload';
+import ExpenseList from '@/components/expense/ExpenseList';
+import IncomeList from '@/components/income/IncomeList';
+import SpendingSummary from '@/components/dashboard/SpendingSummary';
+import FileUpload from '@/components/expense/FileUpload';
 import AppHeader from '@/components/AppHeader';
 import AppNavigation from '@/components/AppNavigation';
-import DashboardStats from '@/components/DashboardStats';
-import DashboardCharts from '@/components/DashboardCharts';
-import FixedExpenses from '@/components/FixedExpenses';
-import SavingsGoals from '@/components/SavingsGoals';
-import DebtTracker from '@/components/DebtTracker';
+import DashboardStats from '@/components/dashboard/DashboardStats';
+import DashboardCharts from '@/components/dashboard/DashboardCharts';
+import FixedExpenses from '@/components/expense/FixedExpenses';
+import SavingsGoals from '@/components/savings/SavingsGoals';
+import DebtTracker from '@/components/debt/DebtTracker';
 import { useExpenseData } from '@/hooks/useExpenseData';
 import { useIncomeData } from '@/hooks/useIncomeData';
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference';

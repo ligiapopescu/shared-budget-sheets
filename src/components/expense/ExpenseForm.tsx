@@ -11,7 +11,7 @@ import { useExpenseData } from '@/hooks/useExpenseData';
 import { useHouseholdData } from '@/hooks/useHouseholdData';
 import { Category, CategoryGroup, Expense, ExpenseSplit } from '@/interfaces';
 import DatePickerInput from '@/components/DatePickerInput';
-import ExpenseMultiSplitManager from '@/components/ExpenseMultiSplitManager';
+import ExpenseMultiSplitManager from '@/components/expense/ExpenseMultiSplitManager';
 import CategorySelect from '@/components/CategorySelect';
 import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 

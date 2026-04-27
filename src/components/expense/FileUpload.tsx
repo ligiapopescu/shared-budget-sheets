@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Expense, Category, CategoryGroup, ExpenseAutomationRule, ExpenseSplit } from '@/interfaces';
-import FileUploadDropzone from './file-upload/FileUploadDropzone';
-import ExpenseReviewSection from './file-upload/ExpenseReviewSection';
-import FileFormatGuide from './file-upload/FileFormatGuide';
-import ColumnMappingDialog, { ColumnMapping } from './file-upload/ColumnMappingDialog';
+import FileUploadDropzone from '@/components/file-upload/FileUploadDropzone';
+import ExpenseReviewSection from '@/components/file-upload/ExpenseReviewSection';
+import FileFormatGuide from '@/components/file-upload/FileFormatGuide';
+import ColumnMappingDialog, { ColumnMapping } from '@/components/file-upload/ColumnMappingDialog';
 import { useExpenseData } from '@/hooks/useExpenseData';
 import { useHouseholdData } from '@/hooks/useHouseholdData';
 import { useAutomationRules } from '@/hooks/useAutomationRules';

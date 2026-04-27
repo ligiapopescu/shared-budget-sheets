@@ -21,7 +21,7 @@ import { Category } from '@/interfaces';
 import { useAuth } from '@/contexts/AuthContext';
 import { newId, nowIso } from '@/integrations/google/client';
 import { useHouseholdStatus } from '@/hooks/useHouseholdStatus';
-import HouseholdCategoryManager from '@/components/HouseholdCategoryManager';
+import HouseholdCategoryManager from '@/components/household/HouseholdCategoryManager';
 import CreateHouseholdDialog from './household/CreateHouseholdDialog';
 import { useHouseholds } from '@/hooks/useHouseholds';
 

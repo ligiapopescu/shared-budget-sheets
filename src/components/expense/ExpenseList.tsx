@@ -20,7 +20,7 @@ import BulkSplitExpenseDialog from '@/components/debt/BulkSplitExpenseDialog';
 import BulkChangeCategoryDialog from '@/components/debt/BulkChangeCategoryDialog';
 import { useHouseholdData } from '@/hooks/useHouseholdData';
 import { createPortal } from 'react-dom';
-import ExpenseMultiSplitManager from '@/components/ExpenseMultiSplitManager';
+import ExpenseMultiSplitManager from '@/components/expense/ExpenseMultiSplitManager';
 import CategorySelect from '@/components/CategorySelect';
 
 interface ExpenseListProps {
