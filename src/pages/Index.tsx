@@ -124,10 +124,11 @@ const Index = () => {
             )}
             
             {activeTab === 'upload' && (
-              <FileUpload 
+              <FileUpload
                 categories={categories}
                 categoryGroups={categoryGroups}
                 getMerchantCategory={getMerchantCategory}
+                refreshData={refreshData}
                 onUploadExpenses={async (fileExpenses) => {
                   for (const expense of fileExpenses) {
                     await addExpense(expense);

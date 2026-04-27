@@ -17,6 +17,9 @@ interface FileUploadProps {
   categories: Category[];
   categoryGroups?: CategoryGroup[];
   getMerchantCategory: (merchant: string) => string;
+  // Called after a new subcategory is added inline from the review
+  // screen, so the parent can refresh its derived categoryGroups list.
+  refreshData?: () => void;
 }
 
 interface PendingExpense extends Omit<Expense, 'id' | 'user_id' | 'splits'> {
@@ -30,7 +33,7 @@ interface CategorizedExpenses {
   needsAttention: PendingExpense[];
 }
 
-const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantCategory }: FileUploadProps) => {
+const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantCategory, refreshData }: FileUploadProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [categorizedExpenses, setCategorizedExpenses] = useState<CategorizedExpenses>({
@@ -693,6 +696,7 @@ const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantC
         categories={categories}
         categoryGroups={categoryGroups}
         householdPersons={householdPersons}
+        onCategoryCreated={refreshData}
         onUpdateExpense={updateCategorizedExpense}
         onUpdateExpenseSplit={updateExpenseSplit}
         onRemoveExpense={removeCategorizedExpense}

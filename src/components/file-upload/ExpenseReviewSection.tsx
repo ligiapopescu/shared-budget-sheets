@@ -60,6 +60,7 @@ interface ExpenseReviewSectionProps {
   onConfirmAll: () => void;
   onCancel: () => void;
   isUploading?: boolean;
+  onCategoryCreated?: () => void;
 }
 
 const ExpenseReviewSection = ({
@@ -73,7 +74,8 @@ const ExpenseReviewSection = ({
   onRestoreExpense,
   onConfirmAll,
   onCancel,
-  isUploading = false
+  isUploading = false,
+  onCategoryCreated
 }: ExpenseReviewSectionProps) => {
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
   const { editingCell, editData, setEditData, startEdit, cancelEdit, parseEditingCell } =
@@ -260,6 +262,8 @@ const ExpenseReviewSection = ({
           onValueChange={(value) => onUpdateExpense(expense.tempId, 'category', value, currentSection)}
           showBadge={true}
           triggerClassName="hover:bg-gray-100 border-none bg-transparent shadow-none"
+          enableInlineCreate
+          onCategoryCreated={onCategoryCreated}
         />
       ),
     },

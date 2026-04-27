@@ -354,6 +354,8 @@ const ExpenseList = ({
               }}
               showBadge={true}
               triggerClassName="border-0 shadow-none hover:bg-gray-100 p-2"
+              enableInlineCreate
+              onCategoryCreated={refreshData}
             />
           </div>
         );
@@ -536,6 +538,8 @@ const ExpenseList = ({
           categoryGroups={categoryGroups}
           value={newExpenseData.category || ''}
           onValueChange={(value) => setNewExpenseData({ ...newExpenseData, category: value })}
+          enableInlineCreate
+          onCategoryCreated={refreshData}
         />
       </TableCell>
       <TableCell>
