@@ -244,9 +244,14 @@ async function main() {
     const rowsToInsert: string[][] = [];
     let skipped = 0;
     for (const r of supaRows) {
-      const id = String(r['id'] ?? '');
-      if (!id) { skipped++; continue; }
-      if (existingIds.has(id)) { skipped++; continue; }
+      const rawId = String(r['id'] ?? '');
+      if (!rawId) { skipped++; continue; }
+      // For tables where 'id' itself is a user-id (profiles), the dedup
+      // check has to look at the remapped value — otherwise we'd duplicate
+      // ligia's profile row, which already exists under her Google sub
+      // because OAuth signup created it.
+      const effectiveId = String(remap('id', rawId));
+      if (existingIds.has(effectiveId)) { skipped++; continue; }
       const cells = sheetCols.map(c => toCell(remap(c, r[c])));
       rowsToInsert.push(cells);
     }
