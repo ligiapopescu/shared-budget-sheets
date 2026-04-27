@@ -39,12 +39,6 @@ const DebtManagement = () => {
   }
 
   const personDebtEntries = debtEntries.filter(entry => entry.household_person_id === personId);
-  
-  console.log('=== DEBT MANAGEMENT COMPONENT DEBUG ===');
-  console.log('personId:', personId);
-  console.log('Total debt entries:', debtEntries.length);
-  console.log('Person debt entries:', personDebtEntries.length);
-  console.log('Person debt entries data:', personDebtEntries);
 
   // Calculate totals
   const totals = personDebtEntries.reduce(
@@ -77,16 +71,9 @@ const DebtManagement = () => {
   };
 
   const handleSaveCellEdit = async () => {
-    console.log('=== SAVE CELL EDIT DEBUG ===');
-    console.log('editingCell:', editingCell);
-    console.log('editData:', editData);
-    
     if (editingCell && editData.id) {
-      // Determine what field is being edited from the editingCell string
-      const [entryId, fieldName] = editingCell.split('-');
-      console.log('Entry ID:', entryId, 'Field being edited:', fieldName);
-      
-      // Only send the specific field that's being updated
+      const [, fieldName] = editingCell.split('-');
+
       let updatePayload: Partial<DebtEntry> = {};
       if (fieldName === 'date' && editData.date) {
         updatePayload = { date: editData.date };
@@ -99,16 +86,12 @@ const DebtManagement = () => {
       } else if (fieldName === 'type' && editData.type) {
         updatePayload = { type: editData.type };
       } else {
-        // Fallback to original behavior for other fields
         updatePayload = editData;
       }
-      
-      console.log('Calling updateDebtEntry with payload:', updatePayload);
+
       await updateDebtEntry(editData.id, updatePayload);
-      console.log('updateDebtEntry completed');
     }
-    
-    console.log('Clearing edit state...');
+
     setEditingCell(null);
     setEditData({});
   };
@@ -124,19 +107,10 @@ const DebtManagement = () => {
       header: 'Date',
       sortable: true,
       cell: (entry, isEditing, editData, onEditDataChange, onStartEdit) => {
-        console.log('=== DATE CELL RENDER DEBUG ===');
-        console.log('Entry ID:', entry.id);
-        console.log('Entry date:', entry.date);
-        console.log('Is editing:', isEditing);
-        console.log('Edit data date:', editData?.date);
-        
         return isEditing ? (
-<DatePickerInput
+        <DatePickerInput
           value={editData.date || ''}
-          onChange={(val) => {
-            console.log('DatePickerInput onChange called with:', val);
-            onEditDataChange({ ...editData, date: val });
-          }}
+          onChange={(val) => onEditDataChange({ ...editData, date: val })}
           onCommit={handleSaveCellEdit}
         />
         ) : (

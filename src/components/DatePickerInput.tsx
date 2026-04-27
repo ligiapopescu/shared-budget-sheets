@@ -45,23 +45,10 @@ const DatePickerInput: React.FC<DatePickerInputProps> = ({
   }, [value]);
 
   const handleSelect = (date?: Date) => {
-    console.log('=== DATE PICKER SELECT DEBUG ===');
-    console.log('Selected date:', date);
-    
-    if (!date || !isValid(date)) {
-      console.log('Invalid date, returning early');
-      return;
-    }
-    
-    // Persist as ISO yyyy-MM-dd for app consistency
+    if (!date || !isValid(date)) return;
     const iso = format(date, 'yyyy-MM-dd');
-    console.log('Formatted ISO date:', iso);
-    console.log('Calling onChange with:', iso);
     onChange(iso);
-    
-    console.log('Calling onCommit');
     onCommit?.();
-    console.log('=== DATE PICKER SELECT DEBUG END ===');
   };
 
   return (

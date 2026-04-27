@@ -107,8 +107,6 @@ const ExpenseReviewSection = ({
   };
 
   const handleSaveCellEdit = () => {
-    console.log('handleSaveCellEdit called', { editingCell, editData });
-    
     if (editingCell && editData.tempId) {
       // Split on the last dash to separate tempId from columnId
       const lastDashIndex = editingCell.lastIndexOf('-');
@@ -140,17 +138,12 @@ const ExpenseReviewSection = ({
           value = undefined;
       }
       
-      console.log('Calling onUpdateExpense', { itemId, columnId, value, onUpdateExpense: typeof onUpdateExpense });
-      
       if (value !== undefined && typeof onUpdateExpense === 'function') {
         try {
           onUpdateExpense(itemId, columnId as keyof PendingExpense, value, currentSection);
-          console.log('onUpdateExpense called successfully');
         } catch (error) {
           console.error('Error calling onUpdateExpense:', error);
         }
-      } else {
-        console.error('onUpdateExpense is not a function or value is undefined', { value, onUpdateExpense });
       }
     }
     setEditingCell(null);
@@ -296,10 +289,7 @@ const ExpenseReviewSection = ({
           categories={categories}
           categoryGroups={categoryGroups}
           value={expense.category}
-          onValueChange={(value) => {
-            console.log('Category selected:', value);
-            onUpdateExpense(expense.tempId, 'category', value, currentSection);
-          }}
+          onValueChange={(value) => onUpdateExpense(expense.tempId, 'category', value, currentSection)}
           showBadge={true}
           triggerClassName="hover:bg-gray-100 border-none bg-transparent shadow-none"
         />

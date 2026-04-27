@@ -46,7 +46,7 @@ All data is stored as strings in the sheet. No backend. Full reference in `CLAUD
 ## TODO
 
 ### Phase 1 — Cleanup
-- [ ] 1. Perform code cleanup: remove unused code or dependencies, console logs, etc.
+- [x] 1. Perform code cleanup: remove unused code or dependencies, console logs, etc.
 
 ### Phase 2 — Refactoring
 - [ ] 2. Establish a file system and consolidate the code, improve the components layer, add abstractization, implement overall best practices

@@ -479,8 +479,6 @@ const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantC
   };
 
   const updateCategorizedExpense = (tempId: string, field: keyof PendingExpense, value: string, section: keyof CategorizedExpenses) => {
-    console.log('updateCategorizedExpense called', { tempId, field, value, section });
-    
     setCategorizedExpenses(prev => {
       const updated = { ...prev };
       updated[section] = updated[section].map(expense => {
@@ -502,7 +500,6 @@ const FileUpload = ({ onUploadExpenses, categories, categoryGroups, getMerchantC
         }
         return expense;
       });
-      console.log('Updated categorizedExpenses', updated);
       return updated;
     });
 
