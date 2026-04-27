@@ -37,7 +37,7 @@ Browser (React + Vite)
   └── 16 sheet tabs            One tab per table, row 1 = headers, col A = id
 ```
 
-All data is stored as strings in the sheet. No backend. Full reference in `CLAUDE.md` (generated in Phase 1 cleanup).
+All data is stored as strings in the sheet. No backend. Full architecture and feature map in [CLAUDE.md](CLAUDE.md); known issues in [BUGS.md](BUGS.md).
 
 
 
@@ -52,7 +52,7 @@ All data is stored as strings in the sheet. No backend. Full reference in `CLAUD
 - [x] 2. Establish a file system and consolidate the code, improve the components layer, add abstractization, implement overall best practices
 
 ### Phase 3 — Docs and UX scanning 
-- [ ] 3. Identify the implemented features, check if there are any bugs obvious from the code perspective. Create docs for future work, to keep best practices in place
+- [x] 3. Identify the implemented features, check if there are any bugs obvious from the code perspective. Create docs for future work, to keep best practices in place
 
 ### Phase 4 - Publish ready
 - [ ] 4. In the clean codebase, and with all the features identified, create an implementation plan to fill in the gaps, suggest relevant changes to make this project publishable
