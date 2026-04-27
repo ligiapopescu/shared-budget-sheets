@@ -208,13 +208,29 @@ async function main() {
     const userCols = USER_ID_COLUMNS[table] ?? [];
 
     process.stdout.write(`[${table}] reading… `);
-    const { data, error } = await supabase.from(table).select(supaCols.join(','));
-    if (error) {
-      console.log(`SKIP (${error.message})`);
+    // Supabase's PostgREST caps a single `.select()` at 1000 rows by default
+    // and silently returns the truncated set. Paginate explicitly via
+    // .range() and stop when a page comes back short. Sort by `id` so pages
+    // are deterministic across calls.
+    const PAGE = 1000;
+    const supaRows: Array<Record<string, unknown>> = [];
+    let pageErr: { message: string } | null = null;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from(table)
+        .select(supaCols.join(','))
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) { pageErr = error; break; }
+      const batch = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      supaRows.push(...batch);
+      if (batch.length < PAGE) break;
+    }
+    if (pageErr) {
+      console.log(`SKIP (${pageErr.message})`);
       totals[table] = { read: 0, inserted: 0, skipped: 0 };
       continue;
     }
-    const supaRows = (data ?? []) as unknown as Array<Record<string, unknown>>;
     process.stdout.write(`${supaRows.length} rows… `);
 
     const existingIds = await readExistingIds(table);
