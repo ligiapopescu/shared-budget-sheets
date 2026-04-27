@@ -51,6 +51,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateUserMetadata: (key: keyof UserMetadata, value: string) => void;
   refreshToken: () => void;
+  createNewSpreadsheet: () => Promise<void>;
+  connectToSpreadsheet: (spreadsheetId: string) => Promise<void>;
 }
 
 // ─── Context ────────────────────────────────────────────────────────────────
@@ -102,6 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [sheetsService, setSheetsService] = useState<GoogleSheetsService | null>(null);
   const [loading, setLoading] = useState(true);
   const serviceRef = useRef<GoogleSheetsService | null>(null);
+  const latestTokenRef = useRef<string | null>(null);
 
   // ── Token → full auth init ───────────────────────────────────────────
 
@@ -118,35 +121,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const googleUser: GoogleUser = { id: sub, email, name, picture, user_metadata: meta };
       setUser(googleUser);
       saveCachedProfile(googleUser);
+      // Keep the access token in the ref so createNewSpreadsheet / connectToSpreadsheet can use it.
+      latestTokenRef.current = accessToken;
 
-      // Resolve spreadsheet ID (from cache, Drive search, or new creation).
-      let sid = localStorage.getItem(sheetKey(sub));
-      if (!sid) {
-        const drive = new DriveService(accessToken);
-        sid = await drive.findSpreadsheetByTitle(spreadsheetTitle(email));
-        if (!sid) sid = await drive.createSpreadsheet(spreadsheetTitle(email));
-        localStorage.setItem(sheetKey(sub), sid);
+      // If a spreadsheet was previously linked, reconnect silently.
+      const sid = localStorage.getItem(sheetKey(sub));
+      if (sid) {
+        const svc = new GoogleSheetsService(sid, accessToken);
+        await svc.initializeSpreadsheet();
+        const existing = await svc.getWhere('profiles', 'id', sub, r => r);
+        if (existing.length === 0) {
+          const now = new Date().toISOString();
+          await svc.appendRow('profiles', [sub, email, name, now, now]);
+        }
+        setSpreadsheetId(sid);
+        setSheetsService(svc);
+        serviceRef.current = svc;
       }
-      setSpreadsheetId(sid);
-
-      // Initialise sheets (creates missing tabs + headers in one batch call).
-      const svc = new GoogleSheetsService(sid, accessToken);
-      await svc.initializeSpreadsheet();
-
-      // Ensure a profile row exists.
-      const existing = await svc.getWhere('profiles', 'id', sub, r => r);
-      if (existing.length === 0) {
-        const now = new Date().toISOString();
-        await svc.appendRow('profiles', [sub, email, name, now, now]);
-      }
-
-      setSheetsService(svc);
-      serviceRef.current = svc;
+      // Otherwise spreadsheetId and sheetsService stay null — the SpreadsheetSetup UI will handle it.
     } catch (err) {
       console.error('[Auth] init error:', err);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function initSpreadsheet(sid: string) {
+    const accessToken = latestTokenRef.current;
+    if (!accessToken || !user) throw new Error('Not authenticated');
+    const svc = new GoogleSheetsService(sid, accessToken);
+    await svc.initializeSpreadsheet();
+    const existing = await svc.getWhere('profiles', 'id', user.id, r => r);
+    if (existing.length === 0) {
+      const now = new Date().toISOString();
+      await svc.appendRow('profiles', [user.id, user.email, user.name, now, now]);
+    }
+    localStorage.setItem(sheetKey(user.id), sid);
+    setSpreadsheetId(sid);
+    setSheetsService(svc);
+    serviceRef.current = svc;
   }
 
   // ── Google login hooks (top-level calls required by React) ───────────
@@ -198,7 +211,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSheetsService(null);
     serviceRef.current = null;
     setSpreadsheetId(null);
+    latestTokenRef.current = null;
     localStorage.removeItem('cached_google_user');
+  };
+
+  const createNewSpreadsheet = async () => {
+    if (!user) throw new Error('Not authenticated');
+    const accessToken = latestTokenRef.current;
+    if (!accessToken) throw new Error('No access token — please sign in again');
+    const drive = new DriveService(accessToken);
+    const title = spreadsheetTitle(user.email);
+    let sid = await drive.findSpreadsheetByTitle(title);
+    if (!sid) sid = await drive.createSpreadsheet(title);
+    await initSpreadsheet(sid);
+  };
+
+  const connectToSpreadsheet = async (id: string) => {
+    // Accept either a full URL or a bare spreadsheet ID.
+    const match = id.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    const sid = match ? match[1] : id.trim();
+    if (!sid) throw new Error('Invalid spreadsheet ID or URL');
+    await initSpreadsheet(sid);
   };
 
   const updateUserMetadata = (key: keyof UserMetadata, value: string) => {
@@ -223,6 +256,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       signOut,
       updateUserMetadata,
       refreshToken,
+      createNewSpreadsheet,
+      connectToSpreadsheet,
     }}>
       {children}
     </AuthContext.Provider>
