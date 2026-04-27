@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { SHEET_SCHEMAS, SheetName, colIndex, columnLetter } from './sheetSchema';
+import { DEFAULT_EXCHANGE_RATES } from './exchangeRateSeed';
 
 // ─── ID / timestamp helpers ────────────────────────────────────────────────
 
@@ -366,6 +367,22 @@ export class GoogleSheetsService {
       await this.request(
         `/values/${encodeURIComponent(`${name}!A1`)}:append?valueInputOption=RAW`,
         { method: 'POST', body: JSON.stringify({ values: [headers] }) },
+      );
+    }
+
+    // Seed default exchange rates if we just created the tab. Without this,
+    // any non-display currency renders un-converted (and the
+    // <MissingRateBanner> lights up) until the user edits the sheet by
+    // hand. The seed is a point-in-time approximation; users are expected
+    // to refresh it.
+    if (toCreate.includes('exchange_rates')) {
+      const now = nowIso();
+      const rows = DEFAULT_EXCHANGE_RATES.map(r => [
+        newId(), r.from, r.to, String(r.rate), now,
+      ]);
+      await this.request(
+        `/values/${encodeURIComponent('exchange_rates!A1')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { method: 'POST', body: JSON.stringify({ values: rows }) },
       );
     }
   }

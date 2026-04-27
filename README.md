@@ -49,6 +49,20 @@ npm run build                 # outputs dist/
 npm run preview               # serve the production build locally
 ```
 
+### 4. Deploy (Netlify)
+
+A [netlify.toml](netlify.toml) is included with the SPA-fallback redirect and asset cache headers. Two ways to deploy:
+
+```bash
+# Option A — drag-and-drop the dist/ folder at https://app.netlify.com/drop
+npm run build
+
+# Option B — connect the repo at https://app.netlify.com/start
+# Netlify reads netlify.toml; no extra config needed.
+```
+
+Once you have a Netlify URL (or custom domain), add it to the OAuth client in Google Cloud Console under **Authorised JavaScript origins** and **Authorised redirect URIs**.
+
 ---
 
 ## Architecture
@@ -78,4 +92,4 @@ This started as a personal-use tool and is being prepared for public release. Th
 | 1 — Cleanup (dead code / deps) | ✅ |
 | 2 — Refactor (structure, conventions) | ✅ |
 | 3 — Docs & bug audit | ✅ |
-| 4 — Publish-ready | 🚧 in progress (see [PHASE4_PLAN.md](PHASE4_PLAN.md)) |
+| 4 — Publish-ready | ✅ ready for private beta (see [PHASE4_PLAN.md](PHASE4_PLAN.md) for what's deferred) |

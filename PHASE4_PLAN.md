@@ -106,6 +106,26 @@ These should not be implemented without input from the project owner.
 - [BUGS.md #7](BUGS.md) High: CSV auto-detect now samples date cells before committing to YYYY-MM-DD; if the format doesn't match, the user is forced into the column-mapping dialog with an explicit prompt.
 - [BUGS.md #8](BUGS.md) High: token expiry now handled. Proactive refresh at `expires_in - 60s`, plus a 401-retry path inside `GoogleSheetsService.request()` that awaits a silent re-auth and retries the request once.
 
+## Done in wave 4 (publish-ready)
+
+Decisions captured below were made during a single review pass.
+
+- **Hosting**: Netlify. Added [netlify.toml](netlify.toml) with SPA fallback redirect, asset cache headers, basic security headers, and Node 20 build.
+- **Branding**: app name "Shared Budget Sheets". New SVG favicon ([public/favicon.svg](public/favicon.svg) — teal `$` placeholder, replace with a real logo later). [index.html](index.html) gets a real `<title>`, description, theme-color, and Open Graph + Twitter card metadata.
+- **Default exchange rates**: new [src/integrations/google/exchangeRateSeed.ts](src/integrations/google/exchangeRateSeed.ts) with USD-anchored bidirectional pairs for USD/EUR/GBP/RON/CAD/AUD/JPY (early-2026 approximations). `initializeSpreadsheet` writes them when the `exchange_rates` tab is created so multi-currency users get plausible conversions out of the box.
+
+## Deferred (decisions made; revisit later)
+
+These were explicitly skipped during the wave-4 review pass. Each has a brief note on what to do when the time comes.
+
+- **Telemetry / error tracking** — none for v1. Wire Sentry (errors) + Plausible (page views) when there are enough real users that bug reports stop being one-off conversations. The [`<ErrorBoundary>`](src/components/ErrorBoundary.tsx) already exposes a "copy details" button users can paste into an email.
+- **OAuth verification** — staying in Google's "Testing" mode. Each new user must be added by email to the OAuth consent screen's test-user list (max ~100). Submit for verification when (a) you've got real users, (b) you have a production domain, and (c) you're ready to write a privacy policy + a short demo video.
+- **Privacy notice** — none in repo. Required for OAuth verification submission; not required for private beta. When needed, draft a one-pager: app collects nothing, all data lives in the user's own Google Drive, no third-party processors.
+- **Automated tests + CI** — none. The fastest first wave once you want them: install Vitest, write unit tests for [householdScope.ts](src/integrations/google/householdScope.ts), [parsing.ts](src/integrations/google/parsing.ts), and [useCurrencyConverter](src/hooks/useCurrencyConverter.ts) (all pure functions, ~15-20 tests). Add a GitHub Action running `npm run build && npm run lint && npm test` on PR.
+- **Component splits** (deferred from Phase 2c) — [ExpenseList.tsx](src/components/expense/ExpenseList.tsx) (731 LOC), [DebtEntriesList.tsx](src/components/debt/DebtEntriesList.tsx) (766), [FileUpload.tsx](src/components/expense/FileUpload.tsx) (684), [DashboardCharts.tsx](src/components/dashboard/DashboardCharts.tsx) (651), [Index.tsx](src/pages/Index.tsx) tab orchestration. Mostly mechanical extractions. The CLAUDE.md feature map already lets a contributor navigate them; splits are aesthetic.
+- **Live FX rates** — currently the seed is static. Future improvement: fetch from a free FX API (exchangerate.host, ECB) on app load and refresh the `exchange_rates` sheet, with a "last updated" indicator in the UI.
+- **BUGS.md leftovers** — #11 (CSV header casing in re-parse), #13 (rate-limit retry amplification), #14 (`useEffect` deps audit). All low-frequency or low-value relative to fix cost.
+
 ## Done in wave 3
 
 - [BUGS.md #4](BUGS.md) High: row-index cache TTL dropped from 30s to 2s, plus a one-shot refetch when the cached snapshot doesn't contain the target id. Doesn't fully eliminate cross-client write windows but shrinks them by an order of magnitude.

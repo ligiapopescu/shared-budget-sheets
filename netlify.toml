@@ -1,0 +1,36 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# SPA fallback: every unknown path is rendered by index.html so client-side
+# routing handles it. Without this, Netlify returns 404 for /settings, /auth,
+# /debt/<personId>, and the React Router never sees the request.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Long-lived caching for hashed assets; shorter for HTML so deploys are
+# picked up promptly.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Basic security headers. Strict enough to be useful, lenient enough to keep
+# Google's OAuth iframe and the Sheets/Drive API calls working.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
