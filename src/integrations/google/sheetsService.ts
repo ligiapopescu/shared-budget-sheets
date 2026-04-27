@@ -349,8 +349,16 @@ export class GoogleSheetsService {
 
   // ── Sheet initialisation ────────────────────────────────────────────────
 
+  // Each sheet tab is wrapped in a Google Sheets Table of fixed size so
+  // formulas can reference data by name (e.g. `=expenses[amount]`).
+  // Tables don't auto-extend when rows are appended past their boundary,
+  // so we set the range generously — way beyond any plausible row count.
+  // If a table ever fills up, we'd need to extend it (not handled).
+  private static readonly TABLE_MAX_ROWS = 50_000;
+
   // Creates all sheets from SHEET_SCHEMAS that don't already exist,
-  // writes header rows, and deletes the default "Sheet1" tab.
+  // writes header rows, deletes the default "Sheet1" tab, seeds default
+  // FX rates, and wraps each sheet in a named Table.
   async initializeSpreadsheet(): Promise<void> {
     const data = await this.request('') as {
       sheets?: Array<{ properties: { title: string; sheetId: number } }>;
@@ -361,50 +369,106 @@ export class GoogleSheetsService {
     )?.properties.sheetId;
 
     const toCreate = Object.keys(SHEET_SCHEMAS).filter(n => !existing.has(n));
-    if (toCreate.length === 0 && defaultSheetId == null) return;
 
-    const addRequests = toCreate.map(title => ({
-      addSheet: { properties: { title } },
-    }));
-    const deleteRequest = defaultSheetId != null
-      ? [{ deleteSheet: { sheetId: defaultSheetId } }]
-      : [];
+    if (toCreate.length > 0 || defaultSheetId != null) {
+      const addRequests = toCreate.map(title => ({
+        addSheet: { properties: { title } },
+      }));
+      const deleteRequest = defaultSheetId != null
+        ? [{ deleteSheet: { sheetId: defaultSheetId } }]
+        : [];
 
-    if (addRequests.length > 0 || deleteRequest.length > 0) {
-      await this.batchUpdate([...addRequests, ...deleteRequest]);
+      if (addRequests.length > 0 || deleteRequest.length > 0) {
+        await this.batchUpdate([...addRequests, ...deleteRequest]);
+      }
+
+      // Refresh sheetId cache after creation
+      const fresh = await this.request('') as {
+        sheets?: Array<{ properties: { title: string; sheetId: number } }>;
+      };
+      (fresh.sheets ?? []).forEach(s => {
+        this.sheetIds.set(s.properties.title, s.properties.sheetId);
+      });
+
+      // Write header rows for newly created sheets
+      for (const name of toCreate) {
+        const headers = SHEET_SCHEMAS[name];
+        await this.request(
+          `/values/${encodeURIComponent(`${name}!A1`)}:append?valueInputOption=RAW`,
+          { method: 'POST', body: JSON.stringify({ values: [headers] }) },
+        );
+      }
+
+      // Seed default exchange rates if we just created the tab. Without
+      // this, any non-display currency renders un-converted (and the
+      // <MissingRateBanner> lights up) until the user edits the sheet by
+      // hand. The seed is a point-in-time approximation; users are
+      // expected to refresh it.
+      if (toCreate.includes('exchange_rates')) {
+        const now = nowIso();
+        const rows = DEFAULT_EXCHANGE_RATES.map(r => [
+          newId(), r.from, r.to, String(r.rate), now,
+        ]);
+        await this.request(
+          `/values/${encodeURIComponent('exchange_rates!A1')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+          { method: 'POST', body: JSON.stringify({ values: rows }) },
+        );
+      }
     }
 
-    // Refresh sheetId cache after creation
-    const fresh = await this.request('') as {
-      sheets?: Array<{ properties: { title: string; sheetId: number } }>;
+    // Always run table-ensure: idempotent, and existing spreadsheets that
+    // predate this change need it on next sign-in.
+    await this.ensureTablesForAllSheets().catch(e =>
+      console.warn('[sheets] failed to ensure tables:', e),
+    );
+  }
+
+  // Wraps each sheet in SHEET_SCHEMAS in a Google Sheets Table named after
+  // the sheet (so `=expenses[amount]` works). Idempotent — checks which
+  // tables already exist and only adds missing ones. Each table is sized
+  // generously so subsequent values:append calls always write inside the
+  // table boundary.
+  private async ensureTablesForAllSheets(): Promise<void> {
+    const meta = await this.request(
+      '?fields=sheets(properties(sheetId,title),tables(name))',
+    ) as {
+      sheets?: Array<{
+        properties: { sheetId: number; title: string };
+        tables?: Array<{ name?: string }>;
+      }>;
     };
-    (fresh.sheets ?? []).forEach(s => {
-      this.sheetIds.set(s.properties.title, s.properties.sheetId);
+
+    const sheetsByTitle = new Map<string, { sheetId: number; tableNames: Set<string> }>();
+    (meta.sheets ?? []).forEach(s => {
+      sheetsByTitle.set(s.properties.title, {
+        sheetId: s.properties.sheetId,
+        tableNames: new Set((s.tables ?? []).map(t => t.name).filter(Boolean) as string[]),
+      });
     });
 
-    // Write header rows for newly created sheets
-    for (const name of toCreate) {
-      const headers = SHEET_SCHEMAS[name];
-      await this.request(
-        `/values/${encodeURIComponent(`${name}!A1`)}:append?valueInputOption=RAW`,
-        { method: 'POST', body: JSON.stringify({ values: [headers] }) },
-      );
+    const requests: object[] = [];
+    for (const [sheetName, headers] of Object.entries(SHEET_SCHEMAS)) {
+      const meta = sheetsByTitle.get(sheetName);
+      if (!meta) continue;                       // sheet doesn't exist
+      if (meta.tableNames.has(sheetName)) continue;  // already a table by this name
+      requests.push({
+        addTable: {
+          table: {
+            name: sheetName,
+            range: {
+              sheetId: meta.sheetId,
+              startRowIndex: 0,
+              endRowIndex: GoogleSheetsService.TABLE_MAX_ROWS,
+              startColumnIndex: 0,
+              endColumnIndex: headers.length,
+            },
+          },
+        },
+      });
     }
 
-    // Seed default exchange rates if we just created the tab. Without this,
-    // any non-display currency renders un-converted (and the
-    // <MissingRateBanner> lights up) until the user edits the sheet by
-    // hand. The seed is a point-in-time approximation; users are expected
-    // to refresh it.
-    if (toCreate.includes('exchange_rates')) {
-      const now = nowIso();
-      const rows = DEFAULT_EXCHANGE_RATES.map(r => [
-        newId(), r.from, r.to, String(r.rate), now,
-      ]);
-      await this.request(
-        `/values/${encodeURIComponent('exchange_rates!A1')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
-        { method: 'POST', body: JSON.stringify({ values: rows }) },
-      );
+    if (requests.length > 0) {
+      await this.batchUpdate(requests);
     }
   }
 }
