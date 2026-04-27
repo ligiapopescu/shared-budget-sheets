@@ -9,7 +9,12 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "netlify:login": "netlify login",
+    "netlify:init": "netlify init",
+    "netlify:status": "netlify status",
+    "deploy": "npm run build && netlify deploy --dir=dist",
+    "deploy:prod": "npm run build && netlify deploy --prod --dir=dist"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.0",
@@ -75,6 +80,7 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
+    "netlify-cli": "^25.6.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",

@@ -51,17 +51,27 @@ npm run preview               # serve the production build locally
 
 ### 4. Deploy (Netlify)
 
-A [netlify.toml](netlify.toml) is included with the SPA-fallback redirect and asset cache headers. Two ways to deploy:
+A [netlify.toml](netlify.toml) is included with the SPA-fallback redirect and asset cache headers. The Netlify CLI is bundled as a devDependency.
+
+**First-time setup** (one-off, opens a browser for you to log in and link the project):
 
 ```bash
-# Option A — drag-and-drop the dist/ folder at https://app.netlify.com/drop
-npm run build
-
-# Option B — connect the repo at https://app.netlify.com/start
-# Netlify reads netlify.toml; no extra config needed.
+npm run netlify:login         # browser-based auth with your Netlify account
+npm run netlify:init          # creates a new Netlify site or links an existing one
 ```
 
-Once you have a Netlify URL (or custom domain), add it to the OAuth client in Google Cloud Console under **Authorised JavaScript origins** and **Authorised redirect URIs**.
+`netlify:init` writes a `.netlify/state.json` with the site id (gitignored).
+
+**Deploys**:
+
+```bash
+npm run deploy                # builds and pushes a draft (preview URL)
+npm run deploy:prod           # builds and pushes to the production URL
+```
+
+Once you have a Netlify URL (or custom domain), add it to the OAuth client in Google Cloud Console under **Authorised JavaScript origins** and **Authorised redirect URIs**, then redeploy.
+
+**No-CLI alternative**: drop the contents of `dist/` after `npm run build` onto https://app.netlify.com/drop.
 
 ---
 
