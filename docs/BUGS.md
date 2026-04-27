@@ -18,7 +18,7 @@ Severity scale:
 
 ### 1. ✅ `deleteExpense` has no rollback and no error handling
 **Fixed** in Phase 4 wave 1 (commit `50736ae`). Snapshots state, restores on failure, surfaces a toast.
-[`src/hooks/useExpenseData.ts:235-241`](src/hooks/useExpenseData.ts:235)
+[`src/hooks/useExpenseData.ts:235-241`](../src/hooks/useExpenseData.ts:235)
 
 ```ts
 const deleteExpense = async (id: string) => {
@@ -36,7 +36,7 @@ State mutates first, three awaited calls follow with no try/catch. If any of the
 
 ### 2. ✅ `addExpense` writes split debt-entries without transactional fallback
 **Fixed** in Phase 4 wave 1 (commit `50736ae`). Three-phase write with best-effort cleanup of partial writes; reloads from Sheets on failure so local state matches.
-[`src/hooks/useExpenseData.ts:121-176`](src/hooks/useExpenseData.ts:121)
+[`src/hooks/useExpenseData.ts:121-176`](../src/hooks/useExpenseData.ts:121)
 
 The expense row is appended first, then each split's `debt_entries` row, then state is updated. There's no try/catch around any of this. If the expense row writes successfully but a debt_entries write fails partway through:
 
@@ -53,7 +53,7 @@ The expense row is appended first, then each split's `debt_entries` row, then st
 
 ### 3. ✅ `acceptInvitation` is non-atomic
 **Fixed** in Phase 4 wave 2. Both `acceptInvitation` and `inviteUser` now wrap the second write in try/catch and revert the first write on failure.
-[`src/hooks/useHouseholdData.ts:208-215`](src/hooks/useHouseholdData.ts:208)
+[`src/hooks/useHouseholdData.ts:208-215`](../src/hooks/useHouseholdData.ts:208)
 
 ```ts
 await sheetsService.updateById('household_persons', inv.household_person_id, { connected_user_id: user.id });
@@ -66,7 +66,7 @@ If the first call succeeds and the second fails, the user's `user_id` is in the 
 
 ### 4. 🚧 Stale 30-second row-index cache can write the wrong row
 **Mitigated** in Phase 4 wave 3. TTL dropped from 30s → 2s, and `findRowByIdIndex` now refetches once if the cached snapshot doesn't contain the target id. Local writes still invalidate eagerly. Doesn't fully eliminate the cross-client write window — for that we'd need to drop the cache entirely or move to a row-id-keyed Sheets API call. Acceptable for now.
-[`src/integrations/google/sheetsService.ts:97-108`](src/integrations/google/sheetsService.ts:97)
+[`src/integrations/google/sheetsService.ts:97-108`](../src/integrations/google/sheetsService.ts:97)
 
 `findRowByIdIndex` caches the array of ids per sheet for 30 seconds. The cached **index** is positional. If another household member inserts or deletes a row during that window, every subsequent `updateRow` from the cache hit will target the wrong sheet row.
 
@@ -74,7 +74,7 @@ If the first call succeeds and the second fails, the user's `user_id` is in the 
 
 ### 5. ✅ `updateExpense` race deletes splits before re-creating them
 **Fixed** in Phase 4 wave 3. `useExpenseData` keeps an in-flight `Map<id, Promise>`; concurrent `updateExpense` calls for the same expense id now serialise instead of interleaving.
-[`src/hooks/useExpenseData.ts:178-233`](src/hooks/useExpenseData.ts:178)
+[`src/hooks/useExpenseData.ts:178-233`](../src/hooks/useExpenseData.ts:178)
 
 When edited splits change, the hook deletes all existing `debt_entries` for the expense and then writes the new ones. Two concurrent `updateExpense` calls for the same expense (e.g., two tabs, or the user clicks fast) can interleave so the second call's "delete old splits" wipes the first call's freshly-written splits.
 
@@ -82,7 +82,7 @@ When edited splits change, the hook deletes all existing `debt_entries` for the 
 
 ### 6. ✅ Currency conversion silently returns un-converted amount
 **Fixed across waves 2 and 3.** The hook still returns the unconverted amount on a missing rate (non-breaking) but now warns once per pair and exposes `isRateAvailable(from, to)`. Wave 3 added a `<MissingRateBanner>` on the main app screen that lights up when any expense or income currency lacks a path to the user's display currency, so the limitation is now visible to the user instead of buried in console output.
-[`src/hooks/useCurrencyConverter.ts:32-40`](src/hooks/useCurrencyConverter.ts:32)
+[`src/hooks/useCurrencyConverter.ts:32-40`](../src/hooks/useCurrencyConverter.ts:32)
 
 If neither a direct rate (A→B) nor a USD-pivot pair (A→USD and USD→B) exists, `convertAmount` returns `amount` unchanged. The caller then renders it labelled with the target currency. The user sees `$50` for what is actually `€50` and has no way to know.
 
@@ -90,7 +90,7 @@ If neither a direct rate (A→B) nor a USD-pivot pair (A→USD and USD→B) exis
 
 ### 7. ✅ CSV date format is silently auto-defaulted
 **Fixed** in Phase 4 wave 2. `processCSVFile` samples up to 5 date cells; if fewer than half look like ISO `YYYY-MM-DD`, the auto-process path is skipped and the user is forced into the column-mapping dialog with a toast prompting them to pick the format explicitly.
-[`src/components/expense/FileUpload.tsx`](src/components/expense/FileUpload.tsx) (around the auto-detect path)
+[`src/components/expense/FileUpload.tsx`](../src/components/expense/FileUpload.tsx) (around the auto-detect path)
 
 When the column-mapping dialog auto-detects headers, the date format defaults to `YYYY-MM-DD`. A CSV in `DD/MM/YYYY` is then parsed as `YYYY-MM-DD` and silently produces wrong dates (off by month, or completely garbage). The user sees expenses on the wrong day with no warning.
 
@@ -98,7 +98,7 @@ When the column-mapping dialog auto-detects headers, the date format defaults to
 
 ### 8. ✅ Token expiry isn't proactively detected
 **Fixed** in Phase 4 wave 2. AuthContext now (a) schedules a silent re-auth at `expires_in - 60s` after every successful token, and (b) exposes `refreshAccessTokenAsync()` to `GoogleSheetsService`, which calls it from `request()` on a 401 and retries the request once with the new token. Refresh timer is cleared on sign-out; pending 401 retries reject if the refresh fails.
-[`src/contexts/AuthContext.tsx`](src/contexts/AuthContext.tsx) (token plumbing)
+[`src/contexts/AuthContext.tsx`](../src/contexts/AuthContext.tsx) (token plumbing)
 
 The OAuth implicit flow gives a short-lived access token (3600s). Nothing in `AuthContext` proactively refreshes it; the silent re-auth path runs on mount and on certain failures, but a long-lived browser tab will eventually fire requests with an expired token. Sheets API returns 401, the request layer doesn't have a 401-handler, the error bubbles up as a generic toast or is swallowed.
 
@@ -110,7 +110,7 @@ The OAuth implicit flow gives a short-lived access token (3600s). Nothing in `Au
 
 ### 9. ✅ `getOrCreateHouseholdId` writes household + person separately
 **Fixed** in Phase 4 wave 3. The household_persons write is now wrapped in try/catch; on failure the orphan household row is best-effort deleted before re-throwing.
-[`src/hooks/useHouseholdData.ts:108-124`](src/hooks/useHouseholdData.ts:108)
+[`src/hooks/useHouseholdData.ts:108-124`](../src/hooks/useHouseholdData.ts:108)
 
 Two `appendRow` calls with no error handling. If the second fails, the household exists but has no member. Returns the household id either way, so callers happily proceed to write data into a phantom household. Less likely to bite (small write, fast succession) but the same shape as bug #3.
 
@@ -121,7 +121,7 @@ Multiple deserializers across hooks use `parseFloat(r[i]) || 0` and `parseInt(r[
 **Fix shape**: at the very least, `console.warn` when a numeric parse falls through to the default. Optional: collect a "rows we couldn't fully parse" list and surface a banner in the UI.
 
 ### 11. CSV header detection is case-sensitive in the re-parse path
-[`src/components/expense/FileUpload.tsx`](src/components/expense/FileUpload.tsx) (header detection vs. mapping dialog)
+[`src/components/expense/FileUpload.tsx`](../src/components/expense/FileUpload.tsx) (header detection vs. mapping dialog)
 
 `detectColumnIndices` lowercases headers; the column-mapping dialog re-reads the original casing of `lines[0]`. If a header has mixed case, the auto-detected index can be off-by-one when the dialog reopens.
 
@@ -136,7 +136,7 @@ A 50k-row CSV will be parsed and held entirely in memory before review, then upl
 ## Low
 
 ### 13. `request()` retry can amplify load under rate limiting
-[`src/integrations/google/sheetsService.ts:41-62`](src/integrations/google/sheetsService.ts:41)
+[`src/integrations/google/sheetsService.ts:41-62`](../src/integrations/google/sheetsService.ts:41)
 
 A 429 triggers up to 4 retries with exponential backoff (1s/2s/4s) **per call**. A `Promise.all` that fans out 10 simultaneous calls can issue 40 retries when the API is throttling, making the throttle worse. No global concurrency limiter or shared backoff.
 

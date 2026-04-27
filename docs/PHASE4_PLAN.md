@@ -14,15 +14,15 @@ These are the things that, if left undone, will visibly bite real users. None re
 - **#1** — `deleteExpense` has no rollback / error handling. Wrap in try/catch, snapshot, restore on failure, surface a toast.
 - **#2** — `addExpense` writes the expense row and then per-split debt rows non-atomically. On partial failure either delete the orphan expense or reload via `loadData()` so state matches the sheet.
 
-Both are 30-line patches in [src/hooks/useExpenseData.ts](src/hooks/useExpenseData.ts).
+Both are 30-line patches in [src/hooks/useExpenseData.ts](../src/hooks/useExpenseData.ts).
 
 ### 2. Fix the High-severity correctness gaps that surface to users
-- **Currency conversion silent fallthrough** ([useCurrencyConverter.ts:32-40](src/hooks/useCurrencyConverter.ts:32)) — change the return shape (`{ amount, converted: boolean }`) so callers can render a "rate unavailable" indicator instead of a wrong number with the wrong label.
+- **Currency conversion silent fallthrough** ([useCurrencyConverter.ts:32-40](../src/hooks/useCurrencyConverter.ts:32)) — change the return shape (`{ amount, converted: boolean }`) so callers can render a "rate unavailable" indicator instead of a wrong number with the wrong label.
 - **CSV date-format silent default** — when auto-detect fails to parse N sample values as the default `YYYY-MM-DD`, force the user into the explicit-format dropdown.
 - **Token expiry / 401 recovery** — wrap `request()` in `sheetsService` so a single 401 triggers silent re-auth and one retry instead of bubbling up as a generic error.
 
 ### 3. Atomicity of two-step household writes
-- `acceptInvitation` ([useHouseholdData.ts:208-215](src/hooks/useHouseholdData.ts:208)) and `inviteUser` write two rows with no rollback. Wrap the second write in a try/catch that attempts to revert the first on failure.
+- `acceptInvitation` ([useHouseholdData.ts:208-215](../src/hooks/useHouseholdData.ts:208)) and `inviteUser` write two rows with no rollback. Wrap the second write in a try/catch that attempts to revert the first on failure.
 - `getOrCreateHouseholdId` has the same shape; same fix.
 
 ### 4. Error boundary at the app root
@@ -94,9 +94,9 @@ These should not be implemented without input from the project owner.
 
 - [BUGS.md #1](BUGS.md) Critical: `deleteExpense` rollback + error handling — fixed.
 - [BUGS.md #2](BUGS.md) Critical: `addExpense` atomicity + error handling — fixed.
-- Root `<ErrorBoundary>` added in [src/App.tsx](src/App.tsx).
-- Bundle split into vendor / recharts / radix chunks via `manualChunks` in [vite.config.ts](vite.config.ts).
-- [LICENSE](LICENSE) — MIT.
+- Root `<ErrorBoundary>` added in [src/App.tsx](../src/App.tsx).
+- Bundle split into vendor / recharts / radix chunks via `manualChunks` in [vite.config.ts](../vite.config.ts).
+- [LICENSE](../LICENSE) — MIT.
 - README rewritten with a user-facing top section.
 
 ## Done in wave 2
@@ -110,19 +110,19 @@ These should not be implemented without input from the project owner.
 
 Decisions captured below were made during a single review pass.
 
-- **Hosting**: Netlify. Added [netlify.toml](netlify.toml) with SPA fallback redirect, asset cache headers, basic security headers, and Node 20 build.
-- **Branding**: app name "Shared Budget Sheets". New SVG favicon ([public/favicon.svg](public/favicon.svg) — teal `$` placeholder, replace with a real logo later). [index.html](index.html) gets a real `<title>`, description, theme-color, and Open Graph + Twitter card metadata.
-- **Default exchange rates**: new [src/integrations/google/exchangeRateSeed.ts](src/integrations/google/exchangeRateSeed.ts) with USD-anchored bidirectional pairs for USD/EUR/GBP/RON/CAD/AUD/JPY (early-2026 approximations). `initializeSpreadsheet` writes them when the `exchange_rates` tab is created so multi-currency users get plausible conversions out of the box.
+- **Hosting**: Netlify. Added [netlify.toml](../netlify.toml) with SPA fallback redirect, asset cache headers, basic security headers, and Node 20 build.
+- **Branding**: app name "Shared Budget Sheets". New SVG favicon ([public/favicon.svg](../public/favicon.svg) — teal `$` placeholder, replace with a real logo later). [index.html](../index.html) gets a real `<title>`, description, theme-color, and Open Graph + Twitter card metadata.
+- **Default exchange rates**: new [src/integrations/google/exchangeRateSeed.ts](../src/integrations/google/exchangeRateSeed.ts) with USD-anchored bidirectional pairs for USD/EUR/GBP/RON/CAD/AUD/JPY (early-2026 approximations). `initializeSpreadsheet` writes them when the `exchange_rates` tab is created so multi-currency users get plausible conversions out of the box.
 
 ## Deferred (decisions made; revisit later)
 
 These were explicitly skipped during the wave-4 review pass. Each has a brief note on what to do when the time comes.
 
-- **Telemetry / error tracking** — none for v1. Wire Sentry (errors) + Plausible (page views) when there are enough real users that bug reports stop being one-off conversations. The [`<ErrorBoundary>`](src/components/ErrorBoundary.tsx) already exposes a "copy details" button users can paste into an email.
+- **Telemetry / error tracking** — none for v1. Wire Sentry (errors) + Plausible (page views) when there are enough real users that bug reports stop being one-off conversations. The [`<ErrorBoundary>`](../src/components/ErrorBoundary.tsx) already exposes a "copy details" button users can paste into an email.
 - **OAuth verification** — staying in Google's "Testing" mode. Each new user must be added by email to the OAuth consent screen's test-user list (max ~100). Submit for verification when (a) you've got real users, (b) you have a production domain, and (c) you're ready to write a privacy policy + a short demo video.
 - **Privacy notice** — none in repo. Required for OAuth verification submission; not required for private beta. When needed, draft a one-pager: app collects nothing, all data lives in the user's own Google Drive, no third-party processors.
-- **Automated tests + CI** — none. The fastest first wave once you want them: install Vitest, write unit tests for [householdScope.ts](src/integrations/google/householdScope.ts), [parsing.ts](src/integrations/google/parsing.ts), and [useCurrencyConverter](src/hooks/useCurrencyConverter.ts) (all pure functions, ~15-20 tests). Add a GitHub Action running `npm run build && npm run lint && npm test` on PR.
-- **Component splits** (deferred from Phase 2c) — [ExpenseList.tsx](src/components/expense/ExpenseList.tsx) (731 LOC), [DebtEntriesList.tsx](src/components/debt/DebtEntriesList.tsx) (766), [FileUpload.tsx](src/components/expense/FileUpload.tsx) (684), [DashboardCharts.tsx](src/components/dashboard/DashboardCharts.tsx) (651), [Index.tsx](src/pages/Index.tsx) tab orchestration. Mostly mechanical extractions. The CLAUDE.md feature map already lets a contributor navigate them; splits are aesthetic.
+- **Automated tests + CI** — none. The fastest first wave once you want them: install Vitest, write unit tests for [householdScope.ts](../src/integrations/google/householdScope.ts), [parsing.ts](../src/integrations/google/parsing.ts), and [useCurrencyConverter](../src/hooks/useCurrencyConverter.ts) (all pure functions, ~15-20 tests). Add a GitHub Action running `npm run build && npm run lint && npm test` on PR.
+- **Component splits** (deferred from Phase 2c) — [ExpenseList.tsx](../src/components/expense/ExpenseList.tsx) (731 LOC), [DebtEntriesList.tsx](../src/components/debt/DebtEntriesList.tsx) (766), [FileUpload.tsx](../src/components/expense/FileUpload.tsx) (684), [DashboardCharts.tsx](../src/components/dashboard/DashboardCharts.tsx) (651), [Index.tsx](../src/pages/Index.tsx) tab orchestration. Mostly mechanical extractions. The CLAUDE.md feature map already lets a contributor navigate them; splits are aesthetic.
 - **Live FX rates** — currently the seed is static. Future improvement: fetch from a free FX API (exchangerate.host, ECB) on app load and refresh the `exchange_rates` sheet, with a "last updated" indicator in the UI.
 - **BUGS.md leftovers** — #11 (CSV header casing in re-parse), #13 (rate-limit retry amplification), #14 (`useEffect` deps audit). All low-frequency or low-value relative to fix cost.
 

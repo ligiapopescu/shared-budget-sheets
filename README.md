@@ -75,7 +75,7 @@ Browser (React 18 + Vite + shadcn-ui)
   └── 16 sheet tabs          One tab per "table"; row 1 = headers; col A = id
 ```
 
-Everything is stored as strings in the sheet; hooks deserialize on read. Full architecture, feature map, and conventions live in [CLAUDE.md](CLAUDE.md). Known issues are tracked in [BUGS.md](BUGS.md). The roadmap to a public release is in [PHASE4_PLAN.md](PHASE4_PLAN.md).
+Everything is stored as strings in the sheet; hooks deserialize on read. Full architecture, feature map, and conventions live in [CLAUDE.md](docs/CLAUDE.md). Known issues are tracked in [BUGS.md](docs/BUGS.md). The roadmap to a public release is in [PHASE4_PLAN.md](docs/PHASE4_PLAN.md).
 
 ## License
 
@@ -85,11 +85,11 @@ Everything is stored as strings in the sheet; hooks deserialize on read. Full ar
 
 ## Project status
 
-This started as a personal-use tool and is being prepared for public release. The cleanup and refactoring milestones are done; the path to "publishable" is laid out in [PHASE4_PLAN.md](PHASE4_PLAN.md). Contributions and issues welcome.
+This started as a personal-use tool and is being prepared for public release. The cleanup and refactoring milestones are done; the path to "publishable" is laid out in [PHASE4_PLAN.md](docs/PHASE4_PLAN.md). Contributions and issues welcome.
 
 | Phase | Status |
 |---|---|
 | 1 — Cleanup (dead code / deps) | ✅ |
 | 2 — Refactor (structure, conventions) | ✅ |
 | 3 — Docs & bug audit | ✅ |
-| 4 — Publish-ready | ✅ ready for private beta (see [PHASE4_PLAN.md](PHASE4_PLAN.md) for what's deferred) |
+| 4 — Publish-ready | ✅ ready for private beta (see [PHASE4_PLAN.md](docs/PHASE4_PLAN.md) for what's deferred) |
