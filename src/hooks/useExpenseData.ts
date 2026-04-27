@@ -132,24 +132,51 @@ export const useExpenseData = (includeHouseholdData = false) => {
       expenseData.currency, categoryId, user.id, expenseData.description ?? '',
       hid ?? '', now, now,
     ];
-    await sheetsService.appendRow('expenses', expRow);
 
+    // Two failure modes to handle separately:
+    //   1. The expense row itself failed -> nothing to roll back; just toast.
+    //   2. The expense row succeeded but a debt-entry write failed -> the
+    //      sheet has an orphan expense + partial splits. Reload from the
+    //      source of truth so local state matches what's actually in Sheets,
+    //      and surface a toast so the user knows a partial write happened.
+    try {
+      await sheetsService.appendRow('expenses', expRow);
+    } catch (e) {
+      toast.error('Failed to save expense');
+      throw e;
+    }
+
+    const writtenDebtIds: string[] = [];
     let splitsInfo: ExpenseSplit[] | undefined;
-    if (expenseData.splits && expenseData.splits.length > 0) {
-      splitsInfo = [];
-      for (const split of expenseData.splits) {
-        const splitAmount = split.split_method === 'percentage'
-          ? Math.round(expenseData.amount * split.split_value / 100 * 100) / 100
-          : split.split_value;
-        const did = newId();
-        await sheetsService.appendRow('debt_entries', [
-          did, user.id, split.household_person_id, String(splitAmount),
-          expenseData.currency, `Split from expense: ${expenseData.merchant}`,
-          expenseData.date, 'owe_me', eid,
-          split.split_method, String(split.split_value), 'false', now, now,
-        ]);
-        splitsInfo.push({ ...split, debt_entry_id: did });
+    try {
+      if (expenseData.splits && expenseData.splits.length > 0) {
+        splitsInfo = [];
+        for (const split of expenseData.splits) {
+          const splitAmount = split.split_method === 'percentage'
+            ? Math.round(expenseData.amount * split.split_value / 100 * 100) / 100
+            : split.split_value;
+          const did = newId();
+          await sheetsService.appendRow('debt_entries', [
+            did, user.id, split.household_person_id, String(splitAmount),
+            expenseData.currency, `Split from expense: ${expenseData.merchant}`,
+            expenseData.date, 'owe_me', eid,
+            split.split_method, String(split.split_value), 'false', now, now,
+          ]);
+          writtenDebtIds.push(did);
+          splitsInfo.push({ ...split, debt_entry_id: did });
+        }
       }
+    } catch (e) {
+      // Best-effort cleanup: remove any debt rows we did write, then the
+      // orphan expense. If cleanup itself fails the user gets a clear toast
+      // and we reload below to reconcile state.
+      try {
+        await Promise.all(writtenDebtIds.map(did => sheetsService.delete('debt_entries', did)));
+        await sheetsService.delete('expenses', eid);
+      } catch { /* swallow — handled by reload + toast */ }
+      toast.error('Failed to save split — expense was not added');
+      await loadData();
+      throw e;
     }
 
     const newExpense: Expense = {
@@ -160,18 +187,23 @@ export const useExpenseData = (includeHouseholdData = false) => {
     };
     setExpenses(prev => [newExpense, ...prev]);
 
-    // Update merchant category cache
-    const mcRows = await sheetsService.getWhereMultiple(
-      'merchant_categories',
-      r => r[1] === expenseData.merchant && r[3] === user.id,
-      r => r,
-    );
-    if (mcRows.length > 0) {
-      await sheetsService.updateById('merchant_categories', mcRows[0][0], {
-        category_id: categoryId, last_used: now,
-      });
-    } else {
-      await sheetsService.appendRow('merchant_categories', [newId(), expenseData.merchant, categoryId, user.id, now]);
+    // Merchant-category cache update is best-effort — failure here doesn't
+    // affect the visible expense, so log and move on.
+    try {
+      const mcRows = await sheetsService.getWhereMultiple(
+        'merchant_categories',
+        r => r[1] === expenseData.merchant && r[3] === user.id,
+        r => r,
+      );
+      if (mcRows.length > 0) {
+        await sheetsService.updateById('merchant_categories', mcRows[0][0], {
+          category_id: categoryId, last_used: now,
+        });
+      } else {
+        await sheetsService.appendRow('merchant_categories', [newId(), expenseData.merchant, categoryId, user.id, now]);
+      }
+    } catch (e) {
+      console.error('Failed to update merchant_categories cache:', e);
     }
   };
 
@@ -234,10 +266,17 @@ export const useExpenseData = (includeHouseholdData = false) => {
 
   const deleteExpense = async (id: string) => {
     if (!sheetsService) return;
+    const snapshot = expenses.find(e => e.id === id);
     setExpenses(prev => prev.filter(e => e.id !== id));
-    const debtRows = await sheetsService.getWhere('debt_entries', 'expense_id', id, r => r);
-    await Promise.all(debtRows.map(r => sheetsService.delete('debt_entries', r[0])));
-    await sheetsService.delete('expenses', id);
+    try {
+      const debtRows = await sheetsService.getWhere('debt_entries', 'expense_id', id, r => r);
+      await Promise.all(debtRows.map(r => sheetsService.delete('debt_entries', r[0])));
+      await sheetsService.delete('expenses', id);
+    } catch (e) {
+      if (snapshot) setExpenses(prev => [snapshot, ...prev]);
+      toast.error('Failed to delete expense');
+      throw e;
+    }
   };
 
   const removeSplitFromExpense = async (expenseId: string, debtEntryId?: string) => {
