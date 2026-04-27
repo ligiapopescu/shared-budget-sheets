@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown, Plus, Check, X, Loader2 } from 'lucide-react';
 import { Category, CategoryGroup } from '@/interfaces';
 import { cn } from '@/lib/utils';
-import { useHouseholdCategories } from '@/hooks/useHouseholdCategories';
-import { useHouseholdStatus } from '@/hooks/useHouseholdStatus';
+import { useAddHouseholdCategory } from '@/hooks/useAddHouseholdCategory';
 import { useToast } from '@/hooks/use-toast';
 
 interface CategorySelectProps {
@@ -50,8 +49,9 @@ const CategorySelect = ({
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const { addCategory } = useHouseholdCategories();
-  const { householdId } = useHouseholdStatus();
+  // Mutation-only — does NOT fetch on mount, so it's safe to use inside
+  // a component that may be rendered hundreds of times on a single page.
+  const { addCategory } = useAddHouseholdCategory();
   const { toast } = useToast();
 
   // Auto-expand the group containing the selected category
@@ -100,7 +100,7 @@ const CategorySelect = ({
 
   const submitNew = async (group: CategoryGroup) => {
     const name = newName.trim();
-    if (!name || !householdId || saving) return;
+    if (!name || !group.household_id || saving) return;
     // Don't allow duplicates within the same group (case-insensitive).
     const existsInGroup = group.categories.some(c => c.name.toLowerCase() === name.toLowerCase());
     if (existsInGroup) {
@@ -110,7 +110,7 @@ const CategorySelect = ({
     setSaving(true);
     try {
       await addCategory({
-        household_id: householdId,
+        household_id: group.household_id,
         name,
         // Inherit the group's colour so the new pill matches its siblings.
         color: group.color,
@@ -132,7 +132,11 @@ const CategorySelect = ({
   };
 
   const hasGroups = categoryGroups && categoryGroups.length > 0;
-  const showCreateUI = enableInlineCreate && hasGroups && !!householdId;
+  // Inline-create only makes sense when we have actual household groups
+  // (which is where the new subcategory would be filed). Each group
+  // carries its own household_id so we can write the row without doing
+  // an extra lookup per CategorySelect instance.
+  const showCreateUI = enableInlineCreate && hasGroups && categoryGroups!.some(g => !!g.household_id);
 
   const renderTriggerContent = () => {
     if (!value) {

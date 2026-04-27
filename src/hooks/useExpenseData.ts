@@ -54,6 +54,7 @@ export const useExpenseData = (includeHouseholdData = false) => {
           .sort((a, b) => (parseInt(a[5]) || 0) - (parseInt(b[5]) || 0))
           .map(r => ({
             id: r[0], name: r[2], color: r[3], icon: r[4],
+            household_id: r[1],
             categories: formattedCategories.filter(c => c.group_id === r[0]),
           }));
       } else {
