@@ -49,7 +49,7 @@ All data is stored as strings in the sheet. No backend. Full reference in `CLAUD
 - [x] 1. Perform code cleanup: remove unused code or dependencies, console logs, etc.
 
 ### Phase 2 — Refactoring
-- [ ] 2. Establish a file system and consolidate the code, improve the components layer, add abstractization, implement overall best practices
+- [x] 2. Establish a file system and consolidate the code, improve the components layer, add abstractization, implement overall best practices
 
 ### Phase 3 — Docs and UX scanning 
 - [ ] 3. Identify the implemented features, check if there are any bugs obvious from the code perspective. Create docs for future work, to keep best practices in place
