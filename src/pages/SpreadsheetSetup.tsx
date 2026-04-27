@@ -18,8 +18,9 @@ const SpreadsheetSetup = () => {
     try {
       await createNewSpreadsheet();
       toast({ title: 'Spreadsheet created', description: 'Your budget spreadsheet is ready.' });
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error', description: err.message ?? 'Failed to create spreadsheet' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create spreadsheet';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     } finally {
       setCreating(false);
     }
@@ -31,8 +32,9 @@ const SpreadsheetSetup = () => {
     try {
       await connectToSpreadsheet(joinInput.trim());
       toast({ title: 'Connected', description: 'Spreadsheet linked successfully.' });
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error', description: err.message ?? 'Failed to connect to spreadsheet' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect to spreadsheet';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     } finally {
       setConnecting(false);
     }

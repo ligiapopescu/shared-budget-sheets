@@ -12,6 +12,7 @@ import AddDebtEntryDialog from './debt/AddDebtEntryDialog';
 import DebtSummary from './debt/DebtSummary';
 import InvitationsList from './debt/InvitationsList';
 import HouseholdCategoryManager from './HouseholdCategoryManager';
+import { DebtEntry } from '@/interfaces/debt';
 interface DebtTrackerProps {
   displayCurrency: string;
 }
@@ -20,7 +21,7 @@ const DebtTracker = ({
 }: DebtTrackerProps) => {
   const [showAddPersonDialog, setShowAddPersonDialog] = useState(false);
   const [showAddDebtDialog, setShowAddDebtDialog] = useState(false);
-  const [editingDebtEntry, setEditingDebtEntry] = useState<any>(null);
+  const [editingDebtEntry, setEditingDebtEntry] = useState<DebtEntry | null>(null);
   const {
     convertAmount
   } = useCurrencyConverter();
@@ -44,7 +45,7 @@ const DebtTracker = ({
         <div className="text-lg">Loading debt tracking data...</div>
       </div>;
   }
-  const handleEditDebtEntry = (entry: any) => {
+  const handleEditDebtEntry = (entry: DebtEntry) => {
     setEditingDebtEntry(entry);
     setShowAddDebtDialog(true);
   };

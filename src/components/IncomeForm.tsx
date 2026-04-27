@@ -10,6 +10,7 @@ import { Income } from '@/interfaces';
 import { useToast } from '@/hooks/use-toast';
 import { X } from 'lucide-react';
 import DatePickerInput from '@/components/DatePickerInput';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 
 interface IncomeFormProps {
   onAddIncome: (income: Omit<Income, 'id' | 'user_id'>) => Promise<void>;
@@ -130,9 +131,7 @@ const IncomeForm = ({ onAddIncome, onCancel }: IncomeFormProps) => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD ($)</SelectItem>
-                  <SelectItem value="EUR">EUR (€)</SelectItem>
-                  <SelectItem value="RON">RON (Lei)</SelectItem>
+                  <CurrencySelectItems withSymbol />
                 </SelectContent>
               </Select>
             </div>

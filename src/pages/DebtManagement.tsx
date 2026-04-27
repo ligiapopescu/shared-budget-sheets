@@ -17,6 +17,9 @@ import { DebtEntry } from "@/interfaces/debt";
 import { format } from "date-fns";
 import { useDateFormatPreference } from '@/hooks/useDateFormatPreference';
 import DatePickerInput from '@/components/DatePickerInput';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
+import { DEBT_TYPE_LABELS } from '@/constants/debtTypes';
+import { useInlineEdit } from '@/hooks/useInlineEdit';
 
 const DebtManagement = () => {
   const { personId } = useParams();
@@ -26,8 +29,8 @@ const DebtManagement = () => {
   const { displayCurrency, setDisplayCurrency } = useCurrencyPreference();
   const { dateFormat } = useDateFormatPreference();
   const [showAddDebtDialog, setShowAddDebtDialog] = useState(false);
-  const [editingCell, setEditingCell] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<DebtEntry>>({});
+  const { editingCell, editData, setEditData, startEdit, cancelEdit, parseEditingCell } =
+    useInlineEdit<DebtEntry>();
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
@@ -64,16 +67,13 @@ const DebtManagement = () => {
 
   const handleStartCellEdit = (itemId: string, columnId: string) => {
     const entry = personDebtEntries.find(e => e.id === itemId);
-    if (entry) {
-      setEditingCell(`${itemId}-${columnId}`);
-      setEditData(entry);
-    }
+    if (entry) startEdit(itemId, columnId, entry);
   };
 
   const handleSaveCellEdit = async () => {
-    if (editingCell && editData.id) {
-      const [, fieldName] = editingCell.split('-');
-
+    const parsed = parseEditingCell();
+    if (parsed && editData.id) {
+      const fieldName = parsed.columnId;
       let updatePayload: Partial<DebtEntry> = {};
       if (fieldName === 'date' && editData.date) {
         updatePayload = { date: editData.date };
@@ -92,13 +92,7 @@ const DebtManagement = () => {
       await updateDebtEntry(editData.id, updatePayload);
     }
 
-    setEditingCell(null);
-    setEditData({});
-  };
-
-  const handleCancelCellEdit = () => {
-    setEditingCell(null);
-    setEditData({});
+    cancelEdit();
   };
 
   const columns: ColumnDef<DebtEntry>[] = [
@@ -137,14 +131,14 @@ const DebtManagement = () => {
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="owe_me">They owe me</SelectItem>
-              <SelectItem value="i_owe">I owe them</SelectItem>
+              <SelectItem value="owe_me">{DEBT_TYPE_LABELS.owe_me}</SelectItem>
+              <SelectItem value="i_owe">{DEBT_TYPE_LABELS.i_owe}</SelectItem>
             </SelectContent>
           </Select>
         ) : (
           <span onClick={onStartEdit} className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block">
             <Badge variant={entry.type === 'owe_me' ? 'default' : 'destructive'}>
-              {entry.type === 'owe_me' ? 'They owe me' : 'I owe them'}
+              {DEBT_TYPE_LABELS[entry.type]}
             </Badge>
           </span>
         )
@@ -164,7 +158,7 @@ const DebtManagement = () => {
             onBlur={handleSaveCellEdit}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSaveCellEdit();
-              if (e.key === 'Escape') handleCancelCellEdit();
+              if (e.key === 'Escape') cancelEdit();
             }}
             autoFocus
           />
@@ -195,12 +189,7 @@ const DebtManagement = () => {
               <SelectValue placeholder="Currency" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="USD">USD</SelectItem>
-              <SelectItem value="EUR">EUR</SelectItem>
-              <SelectItem value="GBP">GBP</SelectItem>
-              <SelectItem value="JPY">JPY</SelectItem>
-              <SelectItem value="CAD">CAD</SelectItem>
-              <SelectItem value="AUD">AUD</SelectItem>
+              <CurrencySelectItems variant="extended" />
             </SelectContent>
           </Select>
         ) : (
@@ -224,7 +213,7 @@ const DebtManagement = () => {
             onBlur={handleSaveCellEdit}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) handleSaveCellEdit();
-              if (e.key === 'Escape') handleCancelCellEdit();
+              if (e.key === 'Escape') cancelEdit();
             }}
             autoFocus
             rows={2}
@@ -287,12 +276,7 @@ const DebtManagement = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="EUR">EUR</SelectItem>
-                  <SelectItem value="GBP">GBP</SelectItem>
-                  <SelectItem value="JPY">JPY</SelectItem>
-                  <SelectItem value="CAD">CAD</SelectItem>
-                  <SelectItem value="AUD">AUD</SelectItem>
+                  <CurrencySelectItems variant="extended" />
                 </SelectContent>
               </Select>
             </div>
@@ -366,7 +350,7 @@ const DebtManagement = () => {
               onEditDataChange={setEditData}
               onStartCellEdit={handleStartCellEdit}
               onSaveCellEdit={handleSaveCellEdit}
-              onCancelCellEdit={handleCancelCellEdit}
+              onCancelCellEdit={cancelEdit}
               onAddNew={() => setShowAddDebtDialog(true)}
               addNewLabel="Add Debt Entry"
               emptyState={

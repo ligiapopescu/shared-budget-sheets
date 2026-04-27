@@ -15,6 +15,7 @@ import { DataTable, ColumnDef } from '@/components/ui/data-table';
 import { format } from 'date-fns';
 import { useDateFormatPreference } from '@/hooks/useDateFormatPreference';
 import DatePickerInput from '@/components/DatePickerInput';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 import BulkSplitExpenseDialog from '@/components/debt/BulkSplitExpenseDialog';
 import BulkChangeCategoryDialog from '@/components/debt/BulkChangeCategoryDialog';
 import { useHouseholdData } from '@/hooks/useHouseholdData';
@@ -389,9 +390,7 @@ const ExpenseList = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="EUR">EUR</SelectItem>
-                <SelectItem value="RON">RON</SelectItem>
+                <CurrencySelectItems />
               </SelectContent>
             </Select>
           </div>
@@ -557,9 +556,7 @@ const ExpenseList = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="USD">USD</SelectItem>
-              <SelectItem value="EUR">EUR</SelectItem>
-              <SelectItem value="RON">RON</SelectItem>
+              <CurrencySelectItems />
             </SelectContent>
           </Select>
         </div>

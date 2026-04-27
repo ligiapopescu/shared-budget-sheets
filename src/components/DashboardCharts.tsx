@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ComposedChart, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ComposedChart, Legend, type TooltipProps } from 'recharts';
+
+type RechartsClickPayload = {
+  activePayload?: Array<{ payload?: Record<string, unknown> }>;
+};
 import { useCurrencyConverter } from '@/hooks/useCurrencyConverter';
 import { useSavingsData } from '@/hooks/useSavingsData';
 import { useIncomeData } from '@/hooks/useIncomeData';
@@ -268,18 +272,18 @@ const DashboardCharts = ({ expenses, categories, categoryGroups, displayCurrency
   const categoryExpensesInGroup = getCategoryExpensesInGroup();
   const monthOptions = getMonthOptions();
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-card border-2 border-border rounded-2xl shadow-soft p-4 z-50">
           <p className="font-semibold text-foreground mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
+          {payload.map((entry, index) => (
             <p key={index} style={{ color: entry.color }} className="font-medium">
-              {entry.dataKey === 'monthly' ? 'This Month: ' : 
-               entry.dataKey === 'average' ? '6-Month Avg: ' : 
+              {entry.dataKey === 'monthly' ? 'This Month: ' :
+               entry.dataKey === 'average' ? '6-Month Avg: ' :
                entry.dataKey === 'income' ? 'Income: ' :
                entry.dataKey === 'amount' ? 'Expenses: ' : ''}
-              {getCurrencySymbol(displayCurrency)}{entry.value.toFixed(2)}
+              {getCurrencySymbol(displayCurrency)}{Number(entry.value ?? 0).toFixed(2)}
             </p>
           ))}
         </div>
@@ -288,22 +292,21 @@ const DashboardCharts = ({ expenses, categories, categoryGroups, displayCurrency
     return null;
   };
 
-  const handleSpendingTrendClick = (data: any) => {
-    if (data && data.activePayload && data.activePayload[0]) {
-      const clickedData = data.activePayload[0].payload;
-      if (clickedData.value) {
-        setSelectedMonth(clickedData.value);
-      }
+  const handleSpendingTrendClick = (data: RechartsClickPayload) => {
+    const clickedData = data?.activePayload?.[0]?.payload;
+    const value = clickedData?.value;
+    if (typeof value === 'string') {
+      setSelectedMonth(value);
     }
   };
 
-  const PieTooltip = ({ active, payload }: any) => {
+  const PieTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-card border-2 border-border rounded-2xl shadow-soft p-4 z-50">
           <p className="font-semibold text-foreground">{payload[0].name}</p>
           <p className="text-primary font-bold">
-            {formatCurrency(payload[0].value, displayCurrency)}
+            {formatCurrency(Number(payload[0].value ?? 0), displayCurrency)}
           </p>
         </div>
       );

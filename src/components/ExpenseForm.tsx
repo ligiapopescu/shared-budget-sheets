@@ -13,6 +13,7 @@ import { Category, CategoryGroup, Expense, ExpenseSplit } from '@/interfaces';
 import DatePickerInput from '@/components/DatePickerInput';
 import ExpenseMultiSplitManager from '@/components/ExpenseMultiSplitManager';
 import CategorySelect from '@/components/CategorySelect';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 
 interface ExpenseFormProps {
   onAddExpense: (expense: Omit<Expense, 'id' | 'user_id'>) => void;
@@ -108,9 +109,7 @@ const ExpenseForm = ({ onAddExpense, categories, categoryGroups, expenses }: Exp
                   <SelectValue placeholder="Select currency" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD ($)</SelectItem>
-                  <SelectItem value="EUR">EUR (€)</SelectItem>
-                  <SelectItem value="RON">RON (Lei)</SelectItem>
+                  <CurrencySelectItems withSymbol />
                 </SelectContent>
               </Select>
             </div>

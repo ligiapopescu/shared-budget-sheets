@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { DebtEntry, HouseholdPerson } from '@/interfaces/debt';
 import DatePickerInput from '@/components/DatePickerInput';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
+import { DEBT_TYPE_LABELS } from '@/constants/debtTypes';
 
 interface AddDebtEntryDialogProps {
   open: boolean;
@@ -176,8 +178,8 @@ const AddDebtEntryDialog = ({ open, onOpenChange, onAddDebtEntry, onUpdateDebtEn
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="owe_me">They owe me</SelectItem>
-                <SelectItem value="i_owe">I owe them</SelectItem>
+                <SelectItem value="owe_me">{DEBT_TYPE_LABELS.owe_me}</SelectItem>
+                <SelectItem value="i_owe">{DEBT_TYPE_LABELS.i_owe}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -206,9 +208,7 @@ const AddDebtEntryDialog = ({ open, onOpenChange, onAddDebtEntry, onUpdateDebtEn
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="EUR">EUR</SelectItem>
-                  <SelectItem value="RON">RON</SelectItem>
+                  <CurrencySelectItems />
                 </SelectContent>
               </Select>
             </div>

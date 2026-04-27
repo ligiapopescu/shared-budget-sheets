@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNumberFormatPreference } from './useNumberFormatPreference';
+import { getCurrencySymbol } from '@/constants/currencies';
 
 interface ExchangeRate {
   id: string;
@@ -37,11 +38,6 @@ export const useCurrencyConverter = () => {
     const fromUsd = exchangeRates.find(r => r.from_currency === 'USD' && r.to_currency === toCurrency);
     if (toUsd && fromUsd) return amount * toUsd.rate * fromUsd.rate;
     return amount;
-  };
-
-  const getCurrencySymbol = (currency: string) => {
-    const symbols: Record<string, string> = { USD: '$', EUR: '€', RON: 'Lei ' };
-    return symbols[currency] ?? '$';
   };
 
   const formatCurrency = (amount: number, currency: string, options?: {

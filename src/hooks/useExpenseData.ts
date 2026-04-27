@@ -59,7 +59,7 @@ export const useExpenseData = (includeHouseholdData = false) => {
       setCategoryGroups(formattedGroups);
 
       // Allowed user IDs for filtering
-      let allowedIds = new Set([user.id]);
+      const allowedIds = new Set([user.id]);
       if (includeHouseholdData) {
         rawPersons.forEach(r => {
           if (r[1]) allowedIds.add(r[1]);

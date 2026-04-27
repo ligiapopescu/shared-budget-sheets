@@ -19,6 +19,7 @@ import { Edit2, Trash2, Save, X, Split } from 'lucide-react';
 import { Expense, Category } from '@/interfaces';
 import SplitExpenseDialog from '@/components/debt/SplitExpenseDialog';
 import DatePickerInput from '@/components/DatePickerInput';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 
 import { useHouseholdData } from '@/hooks/useHouseholdData';
 
@@ -154,9 +155,7 @@ const ExpenseItem = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="EUR">EUR</SelectItem>
-                <SelectItem value="RON">RON</SelectItem>
+                <CurrencySelectItems />
               </SelectContent>
             </Select>
           </div>

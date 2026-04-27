@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Income } from '@/interfaces';
 import { useCurrencyConverter } from '@/hooks/useCurrencyConverter';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 
 interface IncomeItemProps {
   income: Income;
@@ -123,9 +124,7 @@ const IncomeItem = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD ($)</SelectItem>
-                  <SelectItem value="EUR">EUR (€)</SelectItem>
-                  <SelectItem value="RON">RON (Lei)</SelectItem>
+                  <CurrencySelectItems withSymbol />
                 </SelectContent>
               </Select>
             </div>

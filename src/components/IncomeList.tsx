@@ -13,6 +13,7 @@ import { DataTable, ColumnDef, BulkAction } from '@/components/ui/data-table';
 import { format } from 'date-fns';
 import { useDateFormatPreference } from '@/hooks/useDateFormatPreference';
 import DatePickerInput from '@/components/DatePickerInput';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
 
 interface IncomeListProps {
   incomes: Income[];
@@ -263,9 +264,7 @@ const IncomeList = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="EUR">EUR</SelectItem>
-                <SelectItem value="RON">RON</SelectItem>
+                <CurrencySelectItems />
               </SelectContent>
             </Select>
           </div>
@@ -366,9 +365,7 @@ const IncomeList = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="USD">USD</SelectItem>
-              <SelectItem value="EUR">EUR</SelectItem>
-              <SelectItem value="RON">RON</SelectItem>
+              <CurrencySelectItems />
             </SelectContent>
           </Select>
         </div>

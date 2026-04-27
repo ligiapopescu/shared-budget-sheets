@@ -35,7 +35,7 @@ export const useSavingsData = (includeHouseholdData = false) => {
     if (!user || !sheetsService) return;
     try {
       setLoading(true);
-      let allowedIds = new Set([user.id]);
+      const allowedIds = new Set([user.id]);
 
       if (includeHouseholdData) {
         const persons = await sheetsService.getWhereMultiple(

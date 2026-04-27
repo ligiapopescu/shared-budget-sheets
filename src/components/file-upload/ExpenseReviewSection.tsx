@@ -28,6 +28,8 @@ import ExpenseMultiSplitManager from '@/components/ExpenseMultiSplitManager';
 import CategorySelect from '@/components/CategorySelect';
 import BulkChangeCategoryDialog from '@/components/debt/BulkChangeCategoryDialog';
 import BulkSplitPendingExpenseDialog from '@/components/file-upload/BulkSplitPendingExpenseDialog';
+import { CurrencySelectItems } from '@/components/CurrencySelectItems';
+import { useInlineEdit } from '@/hooks/useInlineEdit';
 
 interface ExpenseSplit {
   household_person_id: string;
@@ -81,8 +83,8 @@ const ExpenseReviewSection = ({
   isUploading = false
 }: ExpenseReviewSectionProps) => {
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
-  const [editingCell, setEditingCell] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<PendingExpense>>({});
+  const { editingCell, editData, setEditData, startEdit, cancelEdit, parseEditingCell } =
+    useInlineEdit<PendingExpense>();
   const [currentSection, setCurrentSection] = useState<keyof CategorizedExpenses>('needsAttention');
   const [showChangeCategoryDialog, setShowChangeCategoryDialog] = useState(false);
   const [showSplitDialog, setShowSplitDialog] = useState(false);
@@ -100,44 +102,25 @@ const ExpenseReviewSection = ({
 
   const handleStartCellEdit = (itemId: string, columnId: string) => {
     const expense = categorizedExpenses[currentSection].find(e => e.tempId === itemId);
-    if (expense) {
-      setEditingCell(`${itemId}-${columnId}`);
-      setEditData(expense);
-    }
+    if (expense) startEdit(itemId, columnId, expense);
   };
 
   const handleSaveCellEdit = () => {
-    if (editingCell && editData.tempId) {
-      // Split on the last dash to separate tempId from columnId
-      const lastDashIndex = editingCell.lastIndexOf('-');
-      const itemId = editingCell.substring(0, lastDashIndex);
-      const columnId = editingCell.substring(lastDashIndex + 1);
-      
-      // Get the specific field value from editData
+    const parsed = parseEditingCell();
+    if (parsed && editData.tempId) {
+      const { itemId, columnId } = parsed;
+
       let value: string | undefined;
       switch (columnId) {
-        case 'date':
-          value = editData.date;
-          break;
-        case 'merchant':
-          value = editData.merchant;
-          break;
-        case 'amount':
-          value = editData.amount?.toString();
-          break;
-        case 'category':
-          value = editData.category;
-          break;
-        case 'currency':
-          value = editData.currency;
-          break;
-        case 'description':
-          value = editData.description || '';
-          break;
-        default:
-          value = undefined;
+        case 'date': value = editData.date; break;
+        case 'merchant': value = editData.merchant; break;
+        case 'amount': value = editData.amount?.toString(); break;
+        case 'category': value = editData.category; break;
+        case 'currency': value = editData.currency; break;
+        case 'description': value = editData.description || ''; break;
+        default: value = undefined;
       }
-      
+
       if (value !== undefined && typeof onUpdateExpense === 'function') {
         try {
           onUpdateExpense(itemId, columnId as keyof PendingExpense, value, currentSection);
@@ -146,13 +129,7 @@ const ExpenseReviewSection = ({
         }
       }
     }
-    setEditingCell(null);
-    setEditData({});
-  };
-
-  const handleCancelCellEdit = () => {
-    setEditingCell(null);
-    setEditData({});
+    cancelEdit();
   };
 
   const handleBulkDelete = () => {
@@ -218,7 +195,7 @@ const ExpenseReviewSection = ({
             onBlur={handleSaveCellEdit}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSaveCellEdit();
-              if (e.key === 'Escape') handleCancelCellEdit();
+              if (e.key === 'Escape') cancelEdit();
             }}
             placeholder="Store or service name"
             autoFocus
@@ -248,7 +225,7 @@ const ExpenseReviewSection = ({
               onBlur={handleSaveCellEdit}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveCellEdit();
-                if (e.key === 'Escape') handleCancelCellEdit();
+                if (e.key === 'Escape') cancelEdit();
               }}
               placeholder="0.00"
               className="flex-1"
@@ -262,9 +239,7 @@ const ExpenseReviewSection = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="EUR">EUR</SelectItem>
-                <SelectItem value="RON">RON</SelectItem>
+                <CurrencySelectItems />
               </SelectContent>
             </Select>
           </div>
@@ -309,7 +284,7 @@ const ExpenseReviewSection = ({
                 e.preventDefault();
                 handleSaveCellEdit();
               }
-              if (e.key === 'Escape') handleCancelCellEdit();
+              if (e.key === 'Escape') cancelEdit();
             }}
             placeholder="Additional notes (optional)..."
             rows={2}
@@ -448,7 +423,7 @@ const ExpenseReviewSection = ({
           handleStartCellEdit(itemId, columnId);
         } : () => {}}
         onSaveCellEdit={sectionKey === currentSection ? handleSaveCellEdit : () => {}}
-        onCancelCellEdit={sectionKey === currentSection ? handleCancelCellEdit : () => {}}
+        onCancelCellEdit={sectionKey === currentSection ? cancelEdit : () => {}}
       />
     );
   };
