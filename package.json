@@ -16,7 +16,8 @@
     "deploy": "npm run build && netlify deploy --dir=dist",
     "deploy:prod": "npm run build && netlify deploy --prod --dir=dist",
     "migrate:dry-run": "tsx scripts/migrate-from-supabase.ts --dry-run",
-    "migrate": "tsx scripts/migrate-from-supabase.ts"
+    "migrate": "tsx scripts/migrate-from-supabase.ts",
+    "screenshots": "node scripts/take-screenshots.mjs"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.0",
@@ -85,6 +86,7 @@
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
     "netlify-cli": "^25.6.1",
+    "playwright": "^1.59.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
     "tsx": "^4.21.0",

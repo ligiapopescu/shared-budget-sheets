@@ -22,6 +22,17 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { GoogleSheetsService, DriveService } from '@/integrations/google/client';
 import { reconcileUser } from '@/integrations/google/reconcileUser';
+import { MockSheetsService } from '@/integrations/google/mockSheetsService';
+import { buildDemoFixtures, DEMO_USER_ID, DEMO_USER_EMAIL, DEMO_USER_NAME } from '@/integrations/google/demoFixtures';
+
+// Demo mode short-circuits OAuth and swaps in an in-memory MockSheetsService
+// seeded with synthetic data. Triggered by `?demo=1` in the URL — used by
+// the Playwright screenshot script and by anyone evaluating the app without
+// going through Google Cloud setup.
+function isDemoMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('demo') === '1';
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -288,6 +299,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // ── On mount ─────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (isDemoMode()) {
+      const svc = new MockSheetsService(buildDemoFixtures());
+      const demoUser: GoogleUser = {
+        id: DEMO_USER_ID, email: DEMO_USER_EMAIL, name: DEMO_USER_NAME,
+        picture: '', user_metadata: { preferred_currency: 'EUR' },
+      };
+      setUser(demoUser);
+      setSpreadsheetId('demo-spreadsheet-id');
+      setSheetsService(svc);
+      serviceRef.current = svc;
+      latestTokenRef.current = 'demo-token';
+      setLoading(false);
+      return;
+    }
     const cached = loadCachedProfile();
     if (cached) {
       // Show cached identity instantly; then try a silent token refresh.
