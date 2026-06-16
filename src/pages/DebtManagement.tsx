@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useHouseholdData } from "@/hooks/useHouseholdData";
 import { useCurrencyConverter } from "@/hooks/useCurrencyConverter";
 import { useCurrencyPreference } from "@/hooks/useCurrencyPreference";
+import { useAuth } from "@/contexts/AuthContext";
 import AddDebtEntryDialog from "@/components/debt/AddDebtEntryDialog";
 import { DebtEntry } from "@/interfaces/debt";
 import { format } from "date-fns";
@@ -28,6 +29,7 @@ const DebtManagement = () => {
   const { convertAmount } = useCurrencyConverter();
   const { displayCurrency, setDisplayCurrency } = useCurrencyPreference();
   const { dateFormat } = useDateFormatPreference();
+  const { user } = useAuth();
   const [showAddDebtDialog, setShowAddDebtDialog] = useState(false);
   const { editingCell, editData, setEditData, startEdit, cancelEdit, parseEditingCell } =
     useInlineEdit<DebtEntry>();
@@ -41,13 +43,25 @@ const DebtManagement = () => {
     return <div className="flex items-center justify-center min-h-screen">Person not found</div>;
   }
 
-  const personDebtEntries = debtEntries.filter(entry => entry.household_person_id === personId);
+  // Include both sides of the relationship: entries the current user created
+  // for this person AND entries this person created where the current user is
+  // the counterpart (otherPersonHouseholdId matches the page's personId).
+  const personDebtEntries = debtEntries.filter(
+    entry => entry.otherPersonHouseholdId === personId,
+  );
 
-  // Calculate totals
+  // Totals from the current user's perspective: invert type when the entry
+  // was created by the other person ("they owe me" from their side means
+  // "I owe them" from mine). Resolved entries don't count toward the balance.
   const totals = personDebtEntries.reduce(
     (acc, entry) => {
+      if (entry.resolved) return acc;
       const convertedAmount = convertAmount(entry.amount, entry.currency, displayCurrency);
-      if (entry.type === 'owe_me') {
+      const effectiveType =
+        entry.user_id === user?.id
+          ? entry.type
+          : entry.type === 'owe_me' ? 'i_owe' : 'owe_me';
+      if (effectiveType === 'owe_me') {
         acc.owesMe += convertedAmount;
       } else {
         acc.iOwe += convertedAmount;

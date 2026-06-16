@@ -26,8 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 interface MonthGroup {
   monthKey: string;
   monthLabel: string;
-  sharedExpenses: DebtEntry[];
-  individualEntries: DebtEntry[];
+  entries: DebtEntry[];
   totalOwed: number;
   totalOwe: number;
 }
@@ -105,9 +104,9 @@ const DebtEntriesList = ({
     text += `${monthGroup.monthLabel}\n`;
     text += `${'='.repeat(50)}\n\n`;
 
-    // Combine all entries and sort by date
-    const allEntries = [...monthGroup.sharedExpenses, ...monthGroup.individualEntries];
-    allEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const allEntries = [...monthGroup.entries].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
 
     allEntries.forEach(entry => {
       const effectiveType = entry.user_id !== user?.id 
@@ -141,9 +140,9 @@ const DebtEntriesList = ({
       text += `${monthGroup.monthLabel}\n`;
       text += `${'-'.repeat(50)}\n`;
 
-      // Combine all entries and sort by date
-      const allEntries = [...monthGroup.sharedExpenses, ...monthGroup.individualEntries];
-      allEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const allEntries = [...monthGroup.entries].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
 
       allEntries.forEach(entry => {
         const effectiveType = entry.user_id !== user?.id 
@@ -260,8 +259,7 @@ const DebtEntriesList = ({
         personGroup.months.set(monthKey, {
           monthKey,
           monthLabel,
-          sharedExpenses: [] as DebtEntry[],
-          individualEntries: [] as DebtEntry[],
+          entries: [] as DebtEntry[],
           totalOwed: 0,
           totalOwe: 0,
         });
@@ -270,11 +268,7 @@ const DebtEntriesList = ({
       const monthGroup = personGroup.months.get(monthKey)!;
       const convertedAmount = convertAmount(entry.amount, entry.currency, displayCurrency);
 
-      if (entry.expense_id) {
-        monthGroup.sharedExpenses.push(entry);
-      } else {
-        monthGroup.individualEntries.push(entry);
-      }
+      monthGroup.entries.push(entry);
 
       // Determine effective type from current user's perspective
       let effectiveType = entry.type;
@@ -493,14 +487,13 @@ const DebtEntriesList = ({
                                         >
                                           <Copy className="w-3 h-3" />
                                         </Button>
-                                        {monthGroup.sharedExpenses.some(e => !e.resolved) || monthGroup.individualEntries.some(e => !e.resolved) ? (
+                                        {monthGroup.entries.some(e => !e.resolved) ? (
                                           <Button
                                             size="sm"
                                             variant="outline"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              const allEntries = [...monthGroup.sharedExpenses, ...monthGroup.individualEntries];
-                                              allEntries.filter(entry => !entry.resolved).forEach(entry => {
+                                              monthGroup.entries.filter(entry => !entry.resolved).forEach(entry => {
                                                 onUpdateDebtEntry(entry.id, { resolved: true });
                                               });
                                             }}
@@ -510,14 +503,13 @@ const DebtEntriesList = ({
                                             Resolve All
                                           </Button>
                                         ) : null}
-                                        {monthGroup.sharedExpenses.some(e => e.resolved) || monthGroup.individualEntries.some(e => e.resolved) ? (
+                                        {monthGroup.entries.some(e => e.resolved) ? (
                                           <Button
                                             size="sm"
                                             variant="outline"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              const allEntries = [...monthGroup.sharedExpenses, ...monthGroup.individualEntries];
-                                              allEntries.filter(entry => entry.resolved).forEach(entry => {
+                                              monthGroup.entries.filter(entry => entry.resolved).forEach(entry => {
                                                 onUpdateDebtEntry(entry.id, { resolved: false });
                                               });
                                             }}
@@ -535,216 +527,105 @@ const DebtEntriesList = ({
 
                               <CollapsibleContent>
                                 <CardContent className="pt-0 pb-3">
-                                  <div className="space-y-3">
-                                    {/* Shared Expenses */}
-                                    {monthGroup.sharedExpenses.length > 0 && (
-                                      <div>
-                                        <h5 className="text-sm font-medium text-muted-foreground mb-2">Shared Expenses</h5>
-                                        <div className="space-y-2">
-                                           {monthGroup.sharedExpenses.map((entry: DebtEntry) => {
-                                              // Determine effective type from current user's perspective
-                                              let effectiveType = entry.type;
-                                              if (entry.user_id !== user?.id) {
-                                                effectiveType = entry.type === 'owe_me' ? 'i_owe' : 'owe_me';
-                                              }
-                                              
-                                              return (
-                                             <div key={entry.id} className={`flex items-center justify-between p-3 bg-muted/30 rounded-md ${entry.resolved ? 'opacity-50' : ''}`}>
-                                              <div className="flex-1">
-                                                <div className={`font-medium ${entry.resolved ? 'line-through text-muted-foreground' : ''}`}>
-                                                  {entry.description || '—'}
-                                                </div>
-                                                <div className={`text-sm text-muted-foreground ${entry.resolved ? 'line-through' : ''}`}>
-                                                  {format(new Date(entry.date), dateFormat)}
-                                                </div>
-                                              </div>
-                                              <div className="flex items-center gap-2">
-                                                <Badge variant={effectiveType === 'owe_me' ? 'default' : 'secondary'} className="flex items-center gap-1">
-                                                  {effectiveType === 'owe_me' ? (
-                                                    <>
-                                                      <ArrowUp className="w-3 h-3" />
-                                                      They owe me
-                                                    </>
-                                                  ) : (
-                                                    <>
-                                                      <ArrowDown className="w-3 h-3" />
-                                                      I owe them
-                                                    </>
-                                                  )}
-                                                </Badge>
-                                                 <span className={`font-medium ${entry.resolved ? 'line-through text-muted-foreground' : effectiveType === 'owe_me' ? 'text-green-600' : 'text-red-600'}`}>
-                                                   {formatCurrency(entry.amount, entry.currency)}
-                                                 </span>
-                                                 {entry.resolved ? (
-                                                   <Button
-                                                     size="sm"
-                                                     variant="outline"
-                                                     onClick={() => onUpdateDebtEntry(entry.id, { resolved: false })}
-                                                     title="Undo resolution"
-                                                   >
-                                                     <Undo2 className="w-4 h-4" />
-                                                   </Button>
-                                                 ) : (
-                                                   <Button
-                                                     size="sm"
-                                                     variant="outline"
-                                                     onClick={() => onUpdateDebtEntry(entry.id, { resolved: true })}
-                                                     title="Mark as resolved"
-                                                   >
-                                                     <Check className="w-4 h-4 text-green-600" />
-                                                   </Button>
-                                                 )}
-                                                 {entry.user_id === user?.id && onEditDebtEntry && (
-                                                   <Button
-                                                     size="sm"
-                                                     variant="outline"
-                                                     onClick={() => onEditDebtEntry(entry)}
-                                                     title="Edit entry"
-                                                   >
-                                                     <Edit className="w-4 h-4" />
-                                                   </Button>
-                                                 )}
-                                                 {entry.user_id === user?.id && (
-                                                    <AlertDialog>
-                                                      <AlertDialogTrigger asChild>
-                                                        <Button
-                                                          size="sm"
-                                                          variant="destructive"
-                                                        >
-                                                          <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                      </AlertDialogTrigger>
-                                                      <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                          <AlertDialogTitle>Delete Entry</AlertDialogTitle>
-                                                          <AlertDialogDescription>
-                                                            Are you sure you want to delete this debt entry? This action cannot be undone.
-                                                          </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                          <AlertDialogAction
-                                                            onClick={() => onDeleteDebtEntry(entry.id)}
-                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                          >
-                                                            Delete
-                                                          </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                      </AlertDialogContent>
-                                                    </AlertDialog>
-                                                  )}
-                                              </div>
-                                            </div>
-                                          );
-                                            })}
-                                        </div>
-                                      </div>
-                                    )}
+                                  <div className="space-y-2">
+                                    {[...monthGroup.entries]
+                                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                      .map((entry: DebtEntry) => {
+                                        let effectiveType = entry.type;
+                                        if (entry.user_id !== user?.id) {
+                                          effectiveType = entry.type === 'owe_me' ? 'i_owe' : 'owe_me';
+                                        }
+                                        const rowBg = entry.expense_id ? 'bg-muted/30' : 'bg-background border';
 
-                                    {/* Individual Entries */}
-                                    {monthGroup.individualEntries.length > 0 && (
-                                      <div>
-                                        <h5 className="text-sm font-medium text-muted-foreground mb-2">Individual Entries</h5>
-                                        <div className="space-y-2">
-                                          {monthGroup.individualEntries.map((entry: DebtEntry) => {
-                                              // Determine effective type from current user's perspective
-                                              let effectiveType = entry.type;
-                                              if (entry.user_id !== user?.id) {
-                                                effectiveType = entry.type === 'owe_me' ? 'i_owe' : 'owe_me';
-                                              }
-                                              
-                                              return (
-                                             <div key={entry.id} className={`flex items-center justify-between p-3 bg-background border rounded-md ${entry.resolved ? 'opacity-50' : ''}`}>
-                                              <div className="flex-1">
-                                                <div className={`font-medium ${entry.resolved ? 'line-through text-muted-foreground' : ''}`}>
-                                                  {entry.description || '—'}
-                                                </div>
-                                                <div className={`text-sm text-muted-foreground ${entry.resolved ? 'line-through' : ''}`}>
-                                                  {format(new Date(entry.date), dateFormat)}
-                                                </div>
+                                        return (
+                                          <div key={entry.id} className={`flex items-center justify-between p-3 ${rowBg} rounded-md ${entry.resolved ? 'opacity-50' : ''}`}>
+                                            <div className="flex-1">
+                                              <div className={`font-medium ${entry.resolved ? 'line-through text-muted-foreground' : ''}`}>
+                                                {entry.description || '—'}
                                               </div>
-                                              <div className="flex items-center gap-2">
-                                                <Badge variant={effectiveType === 'owe_me' ? 'default' : 'secondary'} className="flex items-center gap-1">
-                                                  {effectiveType === 'owe_me' ? (
-                                                    <>
-                                                      <ArrowUp className="w-3 h-3" />
-                                                      They owe me
-                                                    </>
-                                                  ) : (
-                                                    <>
-                                                      <ArrowDown className="w-3 h-3" />
-                                                      I owe them
-                                                    </>
-                                                  )}
-                                                </Badge>
-                                                 <span className={`font-medium ${entry.resolved ? 'line-through text-muted-foreground' : effectiveType === 'owe_me' ? 'text-green-600' : 'text-red-600'}`}>
-                                                   {formatCurrency(entry.amount, entry.currency)}
-                                                 </span>
-                                                 {entry.resolved ? (
-                                                   <Button
-                                                     size="sm"
-                                                     variant="outline"
-                                                     onClick={() => onUpdateDebtEntry(entry.id, { resolved: false })}
-                                                     title="Undo resolution"
-                                                   >
-                                                     <Undo2 className="w-4 h-4" />
-                                                   </Button>
-                                                 ) : (
-                                                   <Button
-                                                     size="sm"
-                                                     variant="outline"
-                                                     onClick={() => onUpdateDebtEntry(entry.id, { resolved: true })}
-                                                     title="Mark as resolved"
-                                                   >
-                                                     <Check className="w-4 h-4 text-green-600" />
-                                                   </Button>
-                                                 )}
-                                                 {entry.user_id === user?.id && onEditDebtEntry && (
-                                                   <Button
-                                                     size="sm"
-                                                     variant="outline"
-                                                     onClick={() => onEditDebtEntry(entry)}
-                                                     title="Edit entry"
-                                                   >
-                                                     <Edit className="w-4 h-4" />
-                                                   </Button>
-                                                 )}
-                                                 {entry.user_id === user?.id && (
-                                                    <AlertDialog>
-                                                      <AlertDialogTrigger asChild>
-                                                        <Button
-                                                          size="sm"
-                                                          variant="destructive"
-                                                        >
-                                                          <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                      </AlertDialogTrigger>
-                                                      <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                          <AlertDialogTitle>Delete Entry</AlertDialogTitle>
-                                                          <AlertDialogDescription>
-                                                            Are you sure you want to delete this debt entry? This action cannot be undone.
-                                                          </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                          <AlertDialogAction
-                                                            onClick={() => onDeleteDebtEntry(entry.id)}
-                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                          >
-                                                            Delete
-                                                          </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                      </AlertDialogContent>
-                                                    </AlertDialog>
-                                                  )}
+                                              <div className={`text-sm text-muted-foreground ${entry.resolved ? 'line-through' : ''}`}>
+                                                {format(new Date(entry.date), dateFormat)}
                                               </div>
                                             </div>
-                                          );
-                                            })}
-                                        </div>
-                                      </div>
-                                    )}
+                                            <div className="flex items-center gap-2">
+                                              <Badge variant={effectiveType === 'owe_me' ? 'default' : 'secondary'} className="flex items-center gap-1">
+                                                {effectiveType === 'owe_me' ? (
+                                                  <>
+                                                    <ArrowUp className="w-3 h-3" />
+                                                    They owe me
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <ArrowDown className="w-3 h-3" />
+                                                    I owe them
+                                                  </>
+                                                )}
+                                              </Badge>
+                                              <span className={`font-medium ${entry.resolved ? 'line-through text-muted-foreground' : effectiveType === 'owe_me' ? 'text-green-600' : 'text-red-600'}`}>
+                                                {formatCurrency(entry.amount, entry.currency)}
+                                              </span>
+                                              {entry.resolved ? (
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={() => onUpdateDebtEntry(entry.id, { resolved: false })}
+                                                  title="Undo resolution"
+                                                >
+                                                  <Undo2 className="w-4 h-4" />
+                                                </Button>
+                                              ) : (
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={() => onUpdateDebtEntry(entry.id, { resolved: true })}
+                                                  title="Mark as resolved"
+                                                >
+                                                  <Check className="w-4 h-4 text-green-600" />
+                                                </Button>
+                                              )}
+                                              {entry.user_id === user?.id && onEditDebtEntry && (
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={() => onEditDebtEntry(entry)}
+                                                  title="Edit entry"
+                                                >
+                                                  <Edit className="w-4 h-4" />
+                                                </Button>
+                                              )}
+                                              {entry.user_id === user?.id && (
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button
+                                                      size="sm"
+                                                      variant="destructive"
+                                                    >
+                                                      <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle>Delete Entry</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                        Are you sure you want to delete this debt entry? This action cannot be undone.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                      <AlertDialogAction
+                                                        onClick={() => onDeleteDebtEntry(entry.id)}
+                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                      >
+                                                        Delete
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                   </div>
                                 </CardContent>
                               </CollapsibleContent>
